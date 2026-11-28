@@ -1,0 +1,2090 @@
+' A temple courtyard at dusk at 32 bits: columns round a
+' pool, a temple at its head, braziers burning, and the
+' camera circling it all. Every face is a polygon in
+' perspective, textured, lit by a low sun and hidden by
+' depth; the shadows are blended over the paving, the
+' water over its basin, the flames added. Sized by the
+' screen (stage.bas). Space stops the camera, Esc stops it.
+import gfx.display, gfx.surface, gfx.draw
+from gfx.draw import Vertex
+from stage import Stage, measure, label, on_off$
+from meter import Meter, KEPT, count_frame, rate_text$
+
+const W = 640
+const H = 480
+const PI = 3.14159265
+const ESC = 27
+const FULL = 63
+' text's distance from the edges, in its own pixels
+const MARGIN = 4
+' a texture's side, in texels; it repeats past its edges
+const SIDE = 64
+' the textures; WATER and FLAME have PHASES frames
+const PAVING = 0
+const BLOCKS = 1
+const FLUTES = 2
+const MOULDING = 3
+const FRIEZE = 4
+const ROOF = 5
+const GRASS = 6
+const MOSAIC = 7
+const BRONZE = 8
+const GLOW = 9
+const WATER = 10
+const FLAME = 14
+const TEXTURES = 18
+const PHASES = 4
+' a face drawn in a colour, not a texture
+const INKED = -1
+' how a part is drawn: solid, a shadow, water
+const SOLID_PART = 0
+const SHADOW_PART = 1
+const WATER_PART = 2
+' a part this frame: unseen, seen wholly past NEAR, or cut
+' by it
+const UNSEEN = 0
+const PAST_NEAR = 1
+const CUT = 2
+' a box's faces
+const FACE_TOP = 1
+const FACE_BOTTOM = 2
+const FACE_SOUTH = 4
+const FACE_NORTH = 8
+const FACE_EAST = 16
+const FACE_WEST = 32
+const FACE_ALL = 63
+' each face's corners, clockwise from its top left: a box's
+' corners numbered by their x, y and z bits
+const BOX_FACES = "237645106754320173152640"
+' the most the world holds
+const MOST_VERTICES = 4000
+const MOST_FACES = 1000
+const MOST_PARTS = 100
+const MOST_FIRES = 8
+' a face's corners at most, cut
+const MOST_N = 8
+
+' the sun, toward it: low in the south west (x east, y up,
+' z south)
+const SUN_X = -0.63
+const SUN_Y = 0.34
+const SUN_Z = 0.7
+' light in shade; the tints of shade and of full sun
+const SHADE = 22
+const COOL = &H8C9CD0
+const WARM = &HFFE2BC
+' light inside the temple
+const INSIDE = 12
+' the shadows' colour, their height over the ground, and
+' how much of them, the water and the glows shows
+const INK = &H141A30
+const SHADOW_Y = 0.03
+const SHADOW_ALPHA = 30
+const WATER_ALPHA = 44
+const GLOW_ALPHA = 16
+' water's frames and flames' a second
+const RIPPLES = 5
+const FLICKER = 11
+
+' the camera's circle: its centre's z, radius and swing,
+' height and rise, turns a second and where it starts, and
+' the point it looks at
+const ORBIT_Z = -8
+const ORBIT = 46
+const SWAY = 6
+const LIFT = 9
+const RISE = 6
+const TURN = 0.1
+const START_TURN = -0.6
+const LOOK_Y = 5
+const LOOK_Z = -10
+' the focal length over the screen's height; the nearest
+' and farthest drawn
+const LENS = 0.9
+const NEAR = 1
+const FAR = 900
+
+' texels a unit: the paving's and the pool's, the walls'
+' and the roof's, the meadow's
+const FINE = 16
+const COARSE = 8
+const SPARSE = 5
+' the plaza's half width, the meadow's
+const PLAZA = 24
+const MEADOW = 84
+' the pool: its half width, north and south edges, the
+' curb's width and top, the basin's floor, the water
+const POOL_X = 8
+const POOL_N = -4
+const POOL_S = 12
+const CURB = 1
+const CURB_TOP = 0.5
+const BASIN = -2.4
+const WATER_Y = -0.2
+' a column: its shaft and capital
+const SHAFT_R = 0.9
+const SHAFT_SIDES = 8
+const CAP_HALF = 1.3
+const CAP_H = 0.8
+' the colonnade: its rows' distance out, the columns' gap,
+' their height, and the beam on them
+const ROW = 21
+const GAP = 7
+const COLUMN_H = 8.8
+const BEAM_H = 1.6
+' the temple: its platform's half width, north and south
+' edges, and its steps
+const TEMPLE_X = 16
+const TEMPLE_N = -46
+const TEMPLE_S = -26
+const STEP_H = 0.6
+const STEP_D = 1.2
+const STEPS = 3
+' its columns' rows and height; its eaves and ridge
+const PORCH_X = 11
+const PORCH_N = -41
+const PORCH_S = -31
+const TALL = 10.2
+const EAVES = 13.6
+const RIDGE = 17.8
+' its cella: half width, north and south, its walls'
+' thickness, its door's half width and height
+const CELLA_X = 7
+const CELLA_N = -39
+const CELLA_S = -33
+const WALL = 0.8
+const DOOR_X = 2.2
+const DOOR_H = 9.4
+' a brazier: its stand's height, its bowl's half width;
+' a flame's and a glow's size
+const STAND_H = 2.6
+const BOWL = 0.8
+const FLAME_W = 3.2
+const FLAME_H = 3.2
+const GLOW_SIZE = 9
+
+' the sky's bands up from the horizon, their colours and
+' lower edges in hundredths of the screen; the land
+const BANDS = 8
+const SKY = "F0A060D87C62B06070884C78603E7440326A2A28581A1C40"
+const SKY_EDGES = "0003071218263650"
+const LAND = &H3C4430
+' the sun: its haze and disc
+const HAZE = &HFF9040
+const SUN_DISC = &HFFE6B4
+' the mountains: peaks round, two ranges, their distances,
+' colours and foot; a segment is drawn when its start lies
+' ahead, the cosine of its angle from ahead over SEEN_COS
+const PEAKS = 36
+const RANGES = 2
+const FAR_RANGE = 700
+const NEAR_RANGE = 450
+const FAR_HILLS = &H4C3A62
+const NEAR_HILLS = &H342A46
+const HILLS_FOOT = -60
+const SEEN_COS = 0.35
+
+' the stone's tones
+const STONE_A = &HC9B48E
+const STONE_B = &HBDA683
+const STONE_LIT = &HDECBA4
+const STONE_DIM = &HA28C68
+const JOINT = &H7E6A4E
+const ASHLAR = &HD8C8A4
+const ASHLAR_LIT = &HEADCBA
+const ASHLAR_DIM = &HBAA884
+const MARBLE_HIGH = &HF2E6CA
+const MARBLE_LIGHT = &HE2D4B2
+const MARBLE_MID = &HCBBB98
+const MARBLE_DIM = &HAE9C7A
+const GROOVE = &H8E7C5E
+' the paint on the frieze
+const TRIGLYPH = &H4A5470
+const TRIGLYPH_DIM = &H343C54
+const PAINT_RED = &H9A3A28
+' the roof's tiles
+const ROOF_DARK = &H6A2A18
+const ROOF_TILE = &HB4583A
+const ROOF_LIT = &HD27A52
+' the meadow
+const GRASS_MID = &H55703A
+const GRASS_LIGHT = &H6B8A44
+const GRASS_DARK = &H425A2C
+' the basin's tiles and grout
+const MOSAIC_A = &H2E7C84
+const MOSAIC_B = &H3A96A0
+const MOSAIC_C = &H24646E
+const GROUT = &H1C4448
+' the braziers
+const BRONZE_MID = &H7A5A32
+const BRONZE_LIGHT = &H9C7A44
+const BRONZE_DARK = &H5A4024
+' the water
+const WATER_DEEP = &H1E5C7C
+const WATER_MID = &H2E7896
+const WATER_CREST = &H6AB4C8
+' a flame's layers, outside in
+const FLAMES = "B0300CE8641AFFB43CFFF2C8"
+const FLAME_HALF = 18
+
+type Vec3
+    x as single
+    y as single
+    z as single
+end type
+
+' A flat face: its n corners from vertex first, clockwise
+' seen from its front; its texture, or INKED; the light and
+' tint the sun gives it; its plane, a normal and its offset.
+type Face
+    first as long
+    n as integer
+    texture as integer
+    light as integer
+    tint as long
+    nx as single
+    ny as single
+    nz as single
+    offset as single
+end type
+
+' A part of the world, culled whole: its first vertex and
+' its faces, a sphere round it, how it is drawn, and how it
+' is seen this frame.
+type Part
+    first_vertex as long
+    first_face as long
+    last_face as long
+    centre as Vec3
+    radius as single
+    look as integer
+    seen as integer
+end type
+
+' The world: its faces' corners, and each as seen this
+' frame with its texel; its faces; its parts; its textures;
+' its fires. While it is built: the most light a face is
+' given, and the point its textures are anchored at.
+type World
+    vertices() as Vec3
+    seen() as Vertex
+    faces() as Face
+    parts() as Part
+    textures() as long
+    fires() as Vec3
+    n_vertices as long
+    n_faces as long
+    n_parts as long
+    n_fires as integer
+    cap as integer
+    anchor as Vec3
+end type
+
+' The camera: its eye and its axes in the world; the
+' screen's centre; the focal length in pixels; half the
+' screen across and down, and each's reach from the eye.
+type Camera
+    eye as Vec3
+    across as Vec3
+    up as Vec3
+    ahead as Vec3
+    cx as single
+    cy as single
+    focal as single
+    half_w as single
+    half_h as single
+    reach_w as single
+    reach_h as single
+end type
+
+canvas& = gfx.display.open(W, H, 32, 0)
+dim world as World
+dim hills(RANGES - 1, PEAKS - 1) as Vec3
+dim cam as Camera
+dim st as Stage
+dim fps as Meter
+dim rates(KEPT - 1) as single
+dim q(MOST_N - 1) as Vertex
+dim r(MOST_N - 1) as Vertex
+redim world.textures(TEXTURES - 1)
+
+for i = 0 to TEXTURES - 1
+    world.textures(i) = new_texture(i)
+next
+
+build world
+raise_ranges hills()
+moving% = -1
+travel! = 0
+was# = gfx.display.clock
+began# = was#
+fps.since = was#
+
+do
+    now# = gfx.display.clock
+    dt! = now# - was#
+    was# = now#
+    alive! = now# - began#
+    count_frame fps, rates(), now#
+
+    if moving% then travel! = travel! + dt!
+
+    measure canvas&, st
+    aim cam, st, travel!
+    draw_sky canvas&, cam, st
+    gfx.surface.clear_depth canvas&
+    draw_sun canvas&, cam, st
+    draw_ranges canvas&, cam, hills(), q()
+    ripple% = int(alive! * RIPPLES) mod PHASES
+    draw_world canvas&, world, cam, ripple%, r()
+    draw_fires canvas&, world, cam, alive!, q(), r()
+    show_help canvas&, st, moving%, fps
+    gfx.display.flip
+    k$ = inkey$
+
+    if k$ = chr$(ESC) then exit do
+    if k$ = " " then moving% = not moving%
+loop
+
+gfx.display.close
+
+' Texture which, painted by rule in flat tones.
+function new_texture (byval which as integer) as long
+    s& = gfx.surface.new(SIDE, SIDE)
+
+    select case which
+        case PAVING
+            paint_paving s&
+        case BLOCKS
+            paint_blocks s&
+        case FLUTES
+            paint_flutes s&
+        case MOULDING
+            paint_moulding s&
+        case FRIEZE
+            paint_frieze s&
+        case ROOF
+            paint_roof s&
+        case GRASS
+            paint_grass s&
+        case MOSAIC
+            paint_mosaic s&
+        case BRONZE
+            paint_bronze s&
+        case GLOW
+            paint_glow s&
+        case WATER to WATER + PHASES - 1
+            paint_water s&, which - WATER
+        case else
+            paint_flame s&, which - FLAME
+    end select
+
+    new_texture = s&
+end function
+
+' Four slabs, two tones, each with a lit and a shaded edge
+' and a joint on its top and left; a few worn spots.
+sub paint_paving (byval s as long)
+    dim k as integer
+    dim x0 as integer
+    dim y0 as integer
+    dim x1 as integer
+    dim y1 as integer
+    dim stone as long
+    half% = SIDE \ 2
+    f% = gfx.draw.FILL
+
+    for k = 0 to 3
+        x0 = (k and 1) * half%
+        y0 = (k \ 2) * half%
+        x1 = x0 + half% - 1
+        y1 = y0 + half% - 1
+        stone = STONE_A
+
+        if k = 1 or k = 2 then stone = STONE_B
+
+        gfx.draw.rect s, x0, y0, x1, y1, stone, f%
+        gfx.draw.line s, x0 + 1, y0 + 1, x1 - 1, y0 + 1, STONE_LIT
+        gfx.draw.line s, x0 + 1, y0 + 2, x0 + 1, y1 - 1, STONE_LIT
+        gfx.draw.line s, x0 + 2, y1, x1, y1, STONE_DIM
+        gfx.draw.line s, x1, y0 + 2, x1, y1 - 1, STONE_DIM
+        gfx.draw.line s, x0, y0, x1, y0, JOINT
+        gfx.draw.line s, x0, y0, x0, y1, JOINT
+    next
+
+    for k = 0 to 9
+        x0 = (k * 23 + 5) mod SIDE
+        y0 = (k * 41 + 9) mod SIDE
+        gfx.draw.rect s, x0, y0, x0 + 2, y0, STONE_DIM, f%
+    next
+end sub
+
+' Courses of blocks in running bond, each lit above and
+' shaded below.
+sub paint_blocks (byval s as long)
+    dim r as integer
+    dim c as integer
+    dim x as integer
+    dim y0 as integer
+    dim y1 as integer
+    gfx.draw.clear s, ASHLAR
+
+    for r = 0 to 3
+        y0 = r * 16
+        y1 = y0 + 15
+        gfx.draw.line s, 0, y0 + 1, SIDE - 1, y0 + 1, ASHLAR_LIT
+        gfx.draw.line s, 0, y1, SIDE - 1, y1, ASHLAR_DIM
+        gfx.draw.line s, 0, y0, SIDE - 1, y0, JOINT
+
+        for c = 0 to 1
+            x = (r and 1) * 16 + c * 32
+            back% = (x + SIDE - 1) mod SIDE
+            gfx.draw.line s, back%, y0 + 2, back%, y1, ASHLAR_DIM
+            gfx.draw.line s, x, y0, x, y1, JOINT
+            gfx.draw.line s, x + 1, y0 + 1, x + 1, y1 - 1, ASHLAR_LIT
+        next
+    next
+end sub
+
+' Two flutes: a groove, a lit edge, a light and a shaded
+' face.
+sub paint_flutes (byval s as long)
+    dim x as integer
+    dim c as long
+
+    for x = 0 to SIDE - 1
+        select case x mod 32
+            case 0, 1
+                c = GROOVE
+            case 2 to 4
+                c = MARBLE_HIGH
+            case 5 to 16
+                c = MARBLE_LIGHT
+            case 17 to 27
+                c = MARBLE_MID
+            case else
+                c = MARBLE_DIM
+        end select
+
+        gfx.draw.line s, x, 0, x, SIDE - 1, c
+    next
+end sub
+
+' A capital's bands, top down: the abacus, the echinus
+' shaded under, the necking, the shaft's top.
+sub paint_moulding (byval s as long)
+    dim y as integer
+    dim c as long
+
+    for y = 0 to SIDE - 1
+        select case y
+            case 0
+                c = MARBLE_HIGH
+            case 1 to 18
+                c = ASHLAR
+            case 19, 20
+                c = GROOVE
+            case 21 to 32
+                c = MARBLE_LIGHT
+            case 33 to 42
+                c = MARBLE_MID
+            case 43 to 45
+                c = MARBLE_DIM
+            case 46, 47
+                c = GROOVE
+            case 48 to 55
+                c = MARBLE_LIGHT
+            case else
+                c = MARBLE_MID
+        end select
+
+        gfx.draw.line s, 0, y, SIDE - 1, y, c
+    next
+end sub
+
+' The entablature over two bays: a cornice, the
+' architrave, and between them a painted triglyph centred
+' on each bay's start, a framed metope between.
+sub paint_frieze (byval s as long)
+    dim b as integer
+    dim g as integer
+    dim x as integer
+    f% = gfx.draw.FILL
+    last% = SIDE - 1
+    gfx.draw.clear s, STONE_A
+    gfx.draw.rect s, 0, 0, last%, 9, ASHLAR, f%
+    gfx.draw.line s, 0, 0, last%, 0, MARBLE_HIGH
+    gfx.draw.line s, 0, 8, last%, 8, PAINT_RED
+    gfx.draw.line s, 0, 9, last%, 9, GROOVE
+    gfx.draw.rect s, 0, 52, last%, last%, ASHLAR, f%
+    gfx.draw.line s, 0, 52, last%, 52, GROOVE
+    gfx.draw.line s, 0, 53, last%, 53, ASHLAR_LIT
+    gfx.draw.line s, 0, last%, last%, last%, ASHLAR_DIM
+
+    ' the third bay's triglyph wraps round to the first's
+    for b = 0 to 2
+        x = b * 32 - 6
+        gfx.draw.rect s, x, 10, x + 11, 51, TRIGLYPH, f%
+
+        for g = 0 to 1
+            gx% = x + 3 + g * 4
+            gfx.draw.rect s, gx%, 12, gx% + 1, 51, TRIGLYPH_DIM, f%
+        next
+
+        gfx.draw.rect s, x + 14, 13, x + 29, 48, PAINT_RED, 0
+    next
+end sub
+
+' Rows of rounded tiles, each row's offset by half a tile,
+' each tile lit down its left.
+sub paint_roof (byval s as long)
+    dim r as integer
+    dim c as integer
+    dim x as integer
+    dim y as integer
+    f% = gfx.draw.FILL
+    gfx.draw.clear s, ROOF_DARK
+
+    for r = 0 to 3
+        y = r * 16
+
+        for c = -1 to 4
+            x = c * 16 + (r and 1) * 8 + 8
+            gfx.draw.rect s, x - 6, y, x + 6, y + 7, ROOF_TILE, f%
+            gfx.draw.circle s, x, y + 7, 6, ROOF_TILE, f%
+            gfx.draw.line s, x - 4, y + 1, x - 4, y + 9, ROOF_LIT
+        next
+    next
+end sub
+
+' Grass with tufts placed by rule, light and dark.
+sub paint_grass (byval s as long)
+    dim k as integer
+    dim x as integer
+    dim y as integer
+    dim c as long
+    gfx.draw.clear s, GRASS_MID
+
+    for k = 0 to 47
+        x = (k * 37 + (k \ 4) * 11) mod SIDE
+        y = (k * 19 + (k * k) mod 13) mod SIDE
+        c = GRASS_DARK
+
+        if k mod 3 = 0 then c = GRASS_LIGHT
+
+        gfx.draw.line s, x, y, x + 1, y - 2, c
+    next
+end sub
+
+' Square tiles of three blues in grout.
+sub paint_mosaic (byval s as long)
+    dim i as integer
+    dim j as integer
+    dim c as long
+    gfx.draw.clear s, GROUT
+
+    for j = 0 to 7
+        for i = 0 to 7
+            select case (i * 3 + j * 5) mod 4
+                case 1
+                    c = MOSAIC_B
+                case 2
+                    c = MOSAIC_C
+                case else
+                    c = MOSAIC_A
+            end select
+
+            x% = i * 8
+            y% = j * 8
+            gfx.draw.rect s, x%, y%, x% + 6, y% + 6, c, gfx.draw.FILL
+        next
+    next
+end sub
+
+' Bronze in bands, lit over dark.
+sub paint_bronze (byval s as long)
+    dim y as integer
+    dim c as long
+
+    for y = 0 to SIDE - 1
+        select case y mod 16
+            case 0 to 2
+                c = BRONZE_LIGHT
+            case 3, 4
+                c = BRONZE_DARK
+            case else
+                c = BRONZE_MID
+        end select
+
+        gfx.draw.line s, 0, y, SIDE - 1, y, c
+    next
+end sub
+
+' Rings of warm light, brighter inward; outside them, keyed.
+sub paint_glow (byval s as long)
+    dim k as integer
+    dim c as long
+    gfx.draw.clear s, 0
+
+    for k = 0 to 7
+        c = (32 + k * 31) * 65536& + (12 + k * 20) * 256& + 4 + k * 10
+        gfx.draw.circle s, 32, 32, 31 - k * 4, c, gfx.draw.FILL
+    next
+end sub
+
+' Water's frame: two waves crossing, in three tones by
+' height; PHASES frames make one cycle and every frame
+' tiles.
+sub paint_water (byval s as long, byval frame as integer)
+    dim x as integer
+    dim y as integer
+    dim start as integer
+    dim c as long
+    dim was as long
+    dim a as single
+    ph! = frame * 2 * PI / PHASES
+
+    for y = 0 to SIDE - 1
+        start = 0
+
+        for x = 0 to SIDE
+            c = -1
+
+            if x < SIDE then
+                a = sin((2 * x + y) * PI / 32 + ph!)
+                a = a + sin((3 * y - x) * PI / 32 - ph!)
+                c = WATER_DEEP
+
+                if a > 0.6 then c = WATER_MID
+                if a > 1.4 then c = WATER_CREST
+            end if
+
+            if x > 0 and c <> was then
+                gfx.draw.line s, start, y, x - 1, y, was
+                start = x
+            end if
+
+            was = c
+        next
+    next
+end sub
+
+' A flame's frame: four layers, each narrower and shorter
+' than the last, swaying; the rest keyed.
+sub paint_flame (byval s as long, byval frame as integer)
+    dim layer as integer
+    dim y as integer
+    dim k as single
+    dim top as single
+    dim t as single
+    dim hw as single
+    dim x as single
+    dim c as long
+    ph! = frame * 2 * PI / PHASES
+    gfx.draw.clear s, 0
+
+    for layer = 0 to 3
+        k = (1 - layer * 0.22) * (1 + 0.06 * sin(ph! + layer * 1.7))
+        top = SIDE - 1 - (SIDE - 4) * k
+        c = hex_at&(FLAMES, layer)
+
+        for y = int(top) + 1 to SIDE - 1
+            t = (y - top) / (SIDE - 1 - top)
+            hw = FLAME_HALF * k * t ^ 0.6 * sqr(1 - t ^ 3)
+            x = SIDE / 2 + 3 * sin(ph! + t * 4) * (1 - t)
+
+            if hw >= 0.5 then gfx.draw.line s, x - hw, y, x + hw, y, c
+        next
+    next
+end sub
+
+' The k-th colour of t, six hex digits each.
+function hex_at& (byval t as string, byval k as integer)
+    hex_at& = val("&H" + mid$(t, k * 6 + 1, 6) + "&")
+end function
+
+function xyz ( _
+    byval x as single, _
+    byval y as single, _
+    byval z as single _
+) as Vec3
+    dim v as Vec3
+    v.x = x
+    v.y = y
+    v.z = z
+    xyz = v
+end function
+
+' a when which is 0, else b.
+function pick ( _
+    byval a as single, _
+    byval b as single, _
+    byval which as integer _
+) as single
+    pick = a
+
+    if which then pick = b
+end function
+
+' Colour a moved toward b by t, channel by channel.
+function mixed ( _
+    byval a as long, _
+    byval b as long, _
+    byval t as single _
+) as long
+    dim k as integer
+    dim unit as long
+    dim ca as long
+    dim cb as long
+    dim c as long
+    unit = 1
+
+    for k = 0 to 2
+        ca = (a \ unit) and 255
+        cb = (b \ unit) and 255
+        c = c + int(ca + (cb - ca) * t) * unit
+        unit = unit * 256
+    next
+
+    mixed = c
+end function
+
+' The world, made once.
+sub build (wd as World)
+    redim wd.vertices(MOST_VERTICES - 1)
+    redim wd.seen(MOST_VERTICES - 1)
+    redim wd.faces(MOST_FACES - 1)
+    redim wd.parts(MOST_PARTS - 1)
+    redim wd.fires(MOST_FIRES - 1)
+    wd.cap = FULL
+    build_ground wd
+    build_pool wd
+    build_colonnade wd
+    build_steps wd
+    build_porch wd
+    build_roof wd
+    build_cella wd
+    build_braziers wd
+    build_shadows wd
+end sub
+
+' The meadow round the plaza, and the plaza's paving round
+' the pool.
+sub build_ground (wd as World)
+    part_begin wd, SOLID_PART
+    ring wd, MEADOW, -MEADOW, MEADOW, PLAZA, -PLAZA, PLAZA, _
+        GRASS, SPARSE
+    part_end wd
+    part_begin wd, SOLID_PART
+    ring wd, PLAZA, -PLAZA, PLAZA, POOL_X, POOL_N, POOL_S, _
+        PAVING, FINE
+    part_end wd
+end sub
+
+' A floor at height 0 out to out_x east and west and from
+' out_n to out_s, round a hole in_x east and west and from
+' in_n to in_s: four strips.
+sub ring ( _
+    wd as World, _
+    byval out_x as single, _
+    byval out_n as single, _
+    byval out_s as single, _
+    byval in_x as single, _
+    byval in_n as single, _
+    byval in_s as single, _
+    byval texture as integer, _
+    byval scale as single _
+)
+    dim wide as single
+    dim deep as single
+    wide = out_x - in_x
+    deep = in_s - in_n
+    flat wd, -out_x, out_n, 2 * out_x, in_n - out_n, 0, texture, _
+        scale
+    flat wd, -out_x, in_s, 2 * out_x, out_s - in_s, 0, texture, _
+        scale
+    flat wd, -out_x, in_n, wide, deep, 0, texture, scale
+    flat wd, in_x, in_n, wide, deep, 0, texture, scale
+end sub
+
+' The pool: its curb, down to the basin's floor, then the
+' water over it.
+sub build_pool (wd as World)
+    dim x0 as single
+    dim x1 as single
+    dim lz as single
+    dim sides as integer
+    x0 = -POOL_X - CURB
+    x1 = POOL_X + CURB
+    lz = POOL_S - POOL_N
+    sides = FACE_ALL - FACE_BOTTOM
+    part_begin wd, SOLID_PART
+    box wd, x0, BASIN, POOL_N - CURB, x1, CURB_TOP, POOL_N, _
+        BLOCKS, BLOCKS, FINE, FINE, sides
+    box wd, x0, BASIN, POOL_S, x1, CURB_TOP, POOL_S + CURB, _
+        BLOCKS, BLOCKS, FINE, FINE, sides
+    box wd, x0, BASIN, POOL_N, -POOL_X, CURB_TOP, POOL_S, _
+        BLOCKS, BLOCKS, FINE, FINE, sides
+    box wd, POOL_X, BASIN, POOL_N, x1, CURB_TOP, POOL_S, _
+        BLOCKS, BLOCKS, FINE, FINE, sides
+    flat wd, -POOL_X, POOL_N, 2 * POOL_X, lz, BASIN, MOSAIC, FINE
+    part_end wd
+    part_begin wd, WATER_PART
+    flat wd, -POOL_X, POOL_N, 2 * POOL_X, lz, WATER_Y, WATER, FINE
+    part_end wd
+end sub
+
+' Columns down the east and west and across the south, a
+' beam along each row.
+sub build_colonnade (wd as World)
+    dim k as integer
+    dim p as single
+    dim reach as single
+    dim inner as single
+
+    for k = -3 to 3
+        p = k * GAP
+        column wd, -ROW, 0, p, COLUMN_H
+        column wd, ROW, 0, p, COLUMN_H
+
+        if abs(k) < 3 then column wd, p, 0, ROW, COLUMN_H
+    next
+
+    reach = ROW + CAP_HALF
+    inner = ROW - CAP_HALF
+    part_begin wd, SOLID_PART
+    beam wd, -reach, -reach, -inner, reach, COLUMN_H, GAP, 0, 0
+    beam wd, inner, -reach, reach, reach, COLUMN_H, GAP, 0, 0
+    beam wd, -inner, inner, inner, reach, COLUMN_H, GAP, 0, 0
+    part_end wd
+end sub
+
+' Three steps round the temple's platform, each a ring of
+' blocks from the ground; then the platform's paving, dim
+' inside the cella.
+sub build_steps (wd as World)
+    dim k as integer
+    dim xo as single
+    dim xi as single
+    dim no as single
+    dim ni as single
+    dim so as single
+    dim si as single
+    dim y as single
+    dim px as single
+    dim pn as single
+    dim ps as single
+    dim deep as single
+    part_begin wd, SOLID_PART
+
+    for k = 0 to STEPS - 1
+        xo = TEMPLE_X - STEP_D * k
+        xi = xo - STEP_D
+        no = TEMPLE_N + STEP_D * k
+        ni = no + STEP_D
+        so = TEMPLE_S - STEP_D * k
+        si = so - STEP_D
+        y = STEP_H * (k + 1)
+        box wd, -xo, 0, si, xo, y, so, BLOCKS, PAVING, FINE, FINE, _
+            FACE_TOP + FACE_SOUTH + FACE_EAST + FACE_WEST
+        box wd, -xo, 0, no, xo, y, ni, BLOCKS, PAVING, FINE, FINE, _
+            FACE_TOP + FACE_NORTH + FACE_EAST + FACE_WEST
+        box wd, -xo, 0, ni, -xi, y, si, BLOCKS, PAVING, FINE, FINE, _
+            FACE_TOP + FACE_WEST
+        box wd, xi, 0, ni, xo, y, si, BLOCKS, PAVING, FINE, FINE, _
+            FACE_TOP + FACE_EAST
+    next
+
+    y = STEP_H * STEPS
+    px = TEMPLE_X - STEP_D * STEPS
+    pn = TEMPLE_N + STEP_D * STEPS
+    ps = TEMPLE_S - STEP_D * STEPS
+    deep = CELLA_S - CELLA_N
+    flat wd, -px, CELLA_S, 2 * px, ps - CELLA_S, y, PAVING, FINE
+    flat wd, -px, pn, 2 * px, CELLA_N - pn, y, PAVING, FINE
+    flat wd, -px, CELLA_N, px - CELLA_X, deep, y, PAVING, FINE
+    flat wd, CELLA_X, CELLA_N, px - CELLA_X, deep, y, PAVING, FINE
+    wd.cap = INSIDE
+    flat wd, -CELLA_X, CELLA_N, 2 * CELLA_X, deep, y, PAVING, FINE
+    wd.cap = FULL
+    part_end wd
+end sub
+
+' Six columns across the temple's front and back, two more
+' down each side, and a beam round them.
+sub build_porch (wd as World)
+    dim k as integer
+    dim x as single
+    dim z as single
+    dim y as single
+    dim e as single
+    dim i as single
+    dim bay as single
+    dim side_bay as single
+    y = STEP_H * STEPS
+    bay = 2 * PORCH_X / 5
+    side_bay = (PORCH_S - PORCH_N) / 3
+
+    for k = 0 to 5
+        x = -PORCH_X + k * bay
+        column wd, x, y, PORCH_S, TALL
+        column wd, x, y, PORCH_N, TALL
+    next
+
+    for k = 1 to 2
+        z = PORCH_S - k * side_bay
+        column wd, -PORCH_X, y, z, TALL
+        column wd, PORCH_X, y, z, TALL
+    next
+
+    y = y + TALL
+    e = PORCH_X + CAP_HALF
+    i = PORCH_X - CAP_HALF
+    part_begin wd, SOLID_PART
+    beam wd, -e, PORCH_S - CAP_HALF, e, PORCH_S + CAP_HALF, y, bay, _
+        -PORCH_X, PORCH_S
+    beam wd, -e, PORCH_N - CAP_HALF, e, PORCH_N + CAP_HALF, y, bay, _
+        -PORCH_X, PORCH_S
+    beam wd, -e, PORCH_N + CAP_HALF, -i, PORCH_S - CAP_HALF, y, _
+        side_bay, -PORCH_X, PORCH_S
+    beam wd, i, PORCH_N + CAP_HALF, e, PORCH_S - CAP_HALF, y, _
+        side_bay, -PORCH_X, PORCH_S
+    part_end wd
+end sub
+
+' The ceiling over the porch, a pediment at each end, and
+' the roof's two slopes, overhanging.
+sub build_roof (wd as World)
+    dim o as Vec3
+    dim du as Vec3
+    dim dv as Vec3
+    dim a as Vec3
+    dim b as Vec3
+    dim c as Vec3
+    dim e as single
+    dim zs as single
+    dim zn as single
+    dim ex as single
+    dim ey as single
+    dim slope as single
+    dim deep as single
+    e = PORCH_X + CAP_HALF
+    zs = PORCH_S + CAP_HALF
+    zn = PORCH_N - CAP_HALF
+    part_begin wd, SOLID_PART
+    o = xyz(-e, EAVES, zs)
+    du = xyz(1, 0, 0)
+    dv = xyz(0, 0, -1)
+    sheet wd, o, du, dv, 2 * e, zs - zn, BLOCKS, COARSE
+    a = xyz(0, RIDGE - 0.2, zs)
+    b = xyz(e, EAVES, zs)
+    c = xyz(-e, EAVES, zs)
+    triangle wd, a, b, c, BLOCKS
+    a.z = zn
+    b = xyz(-e, EAVES, zn)
+    c = xyz(e, EAVES, zn)
+    triangle wd, a, b, c, BLOCKS
+    ex = e + 0.8
+    ey = EAVES - 0.25
+    slope = sqr(ex * ex + (RIDGE - ey) * (RIDGE - ey))
+    deep = zs - zn + 1.2
+    o = xyz(0, RIDGE, zs + 0.6)
+    du = xyz(0, 0, -1)
+    dv = xyz(ex / slope, (ey - RIDGE) / slope, 0)
+    sheet wd, o, du, dv, deep, slope, ROOF, COARSE
+    o = xyz(0, RIDGE, zn - 0.6)
+    du = xyz(0, 0, 1)
+    dv = xyz(-ex / slope, (ey - RIDGE) / slope, 0)
+    sheet wd, o, du, dv, deep, slope, ROOF, COARSE
+    part_end wd
+end sub
+
+' The cella's walls up to the ceiling, a door in the front:
+' their outsides lit by the sun, then their insides dim.
+sub build_cella (wd as World)
+    dim y as single
+    dim n1 as single
+    dim s0 as single
+    dim k as integer
+    dim sides as integer
+    y = STEP_H * STEPS
+    n1 = CELLA_N + WALL
+    s0 = CELLA_S - WALL
+    part_begin wd, SOLID_PART
+
+    for k = 0 to 1
+        sides = FACE_NORTH + FACE_EAST + FACE_WEST
+
+        if k then sides = FACE_SOUTH
+
+        box wd, -CELLA_X, y, CELLA_N, CELLA_X, EAVES, n1, _
+            BLOCKS, BLOCKS, COARSE, COARSE, sides
+        sides = FACE_WEST
+
+        if k then sides = FACE_EAST
+
+        box wd, -CELLA_X, y, n1, -CELLA_X + WALL, EAVES, s0, _
+            BLOCKS, BLOCKS, COARSE, COARSE, sides
+        sides = FACE_EAST
+
+        if k then sides = FACE_WEST
+
+        box wd, CELLA_X - WALL, y, n1, CELLA_X, EAVES, s0, _
+            BLOCKS, BLOCKS, COARSE, COARSE, sides
+        sides = FACE_SOUTH + FACE_WEST + FACE_EAST
+
+        if k then sides = FACE_NORTH
+
+        box wd, -CELLA_X, y, s0, -DOOR_X, EAVES, CELLA_S, _
+            BLOCKS, BLOCKS, COARSE, COARSE, sides
+        box wd, DOOR_X, y, s0, CELLA_X, EAVES, CELLA_S, _
+            BLOCKS, BLOCKS, COARSE, COARSE, sides
+        sides = FACE_SOUTH + FACE_BOTTOM
+
+        if k then sides = FACE_NORTH
+
+        box wd, -DOOR_X, y + DOOR_H, s0, DOOR_X, EAVES, CELLA_S, _
+            BLOCKS, BLOCKS, COARSE, COARSE, sides
+        wd.cap = INSIDE
+    next
+
+    wd.cap = FULL
+    part_end wd
+end sub
+
+' A brazier at each corner of the pool, and one inside the
+' cella.
+sub build_braziers (wd as World)
+    brazier wd, -10, 0, POOL_N - 2
+    brazier wd, 10, 0, POOL_N - 2
+    brazier wd, -10, 0, POOL_S + 4
+    brazier wd, 10, 0, POOL_S + 4
+    wd.cap = INSIDE
+    brazier wd, 0, STEP_H * STEPS, (CELLA_N + CELLA_S) / 2
+    wd.cap = FULL
+end sub
+
+' The colonnade's shadows on the ground: each column's, and
+' each beam's.
+sub build_shadows (wd as World)
+    dim k as integer
+    dim p as single
+    dim reach as single
+    dim inner as single
+    dim y as single
+    part_begin wd, SHADOW_PART
+
+    for k = -3 to 3
+        p = k * GAP
+        column_shadow wd, -ROW, p
+        column_shadow wd, ROW, p
+
+        if abs(k) < 3 then column_shadow wd, p, ROW
+    next
+
+    reach = ROW + CAP_HALF
+    inner = ROW - CAP_HALF
+    y = COLUMN_H + BEAM_H / 2
+    shadow_of wd, -reach, -reach, -inner, reach, y
+    shadow_of wd, inner, -reach, reach, reach, y
+    shadow_of wd, -inner, inner, inner, reach, y
+    part_end wd
+end sub
+
+' Starts a part drawn as look.
+sub part_begin (wd as World, byval look as integer)
+    dim p as long
+    p = wd.n_parts
+    wd.parts(p).look = look
+    wd.parts(p).first_vertex = wd.n_vertices
+    wd.parts(p).first_face = wd.n_faces
+end sub
+
+' Ends the part begun last: a sphere round its vertices.
+sub part_end (wd as World)
+    dim p as long
+    dim i as long
+    dim lo as Vec3
+    dim hi as Vec3
+    dim v as Vec3
+    p = wd.n_parts
+    lo = wd.vertices(wd.parts(p).first_vertex)
+    hi = lo
+
+    for i = wd.parts(p).first_vertex to wd.n_vertices - 1
+        v = wd.vertices(i)
+
+        if v.x < lo.x then lo.x = v.x
+        if v.y < lo.y then lo.y = v.y
+        if v.z < lo.z then lo.z = v.z
+        if v.x > hi.x then hi.x = v.x
+        if v.y > hi.y then hi.y = v.y
+        if v.z > hi.z then hi.z = v.z
+    next
+
+    wd.parts(p).centre = xyz((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, _
+        (lo.z + hi.z) / 2)
+    dx! = hi.x - lo.x
+    dy! = hi.y - lo.y
+    dz! = hi.z - lo.z
+    wd.parts(p).radius = sqr(dx! * dx! + dy! * dy! + dz! * dz!) / 2
+    wd.parts(p).last_face = wd.n_faces - 1
+    wd.n_parts = p + 1
+end sub
+
+' Starts a face of texture.
+sub face_begin (wd as World, byval texture as integer)
+    dim f as long
+    f = wd.n_faces
+    wd.faces(f).first = wd.n_vertices
+    wd.faces(f).n = 0
+    wd.faces(f).texture = texture
+end sub
+
+' The face begun last's next corner: at a, texel u, v.
+sub face_corner ( _
+    wd as World, _
+    a as Vec3, _
+    byval u as single, _
+    byval v as single _
+)
+    dim i as long
+    dim f as long
+    i = wd.n_vertices
+    f = wd.n_faces
+    wd.vertices(i) = a
+    wd.seen(i).u = u
+    wd.seen(i).v = v
+    wd.n_vertices = i + 1
+    wd.faces(f).n = wd.faces(f).n + 1
+end sub
+
+' The texels at the corners of the face begun last, from
+' the anchor: along its top edge, su a unit, and down its
+' left edge, sv a unit. Faces in one plane meet seamlessly.
+sub anchor_texels ( _
+    wd as World, _
+    byval su as single, _
+    byval sv as single _
+)
+    dim f as long
+    dim k as long
+    dim c as integer
+    dim a as Vec3
+    dim b as Vec3
+    dim d as Vec3
+    dim size as single
+    f = wd.n_faces
+    k = wd.faces(f).first
+    a = wd.vertices(k)
+    b = wd.vertices(k + 1)
+    d = wd.vertices(k + wd.faces(f).n - 1)
+    ux! = b.x - a.x
+    uy! = b.y - a.y
+    uz! = b.z - a.z
+    size = sqr(ux! * ux! + uy! * uy! + uz! * uz!) / su
+    ux! = ux! / size
+    uy! = uy! / size
+    uz! = uz! / size
+    vx! = d.x - a.x
+    vy! = d.y - a.y
+    vz! = d.z - a.z
+    size = sqr(vx! * vx! + vy! * vy! + vz! * vz!) / sv
+    vx! = vx! / size
+    vy! = vy! / size
+    vz! = vz! / size
+
+    for c = 0 to wd.faces(f).n - 1
+        a = wd.vertices(k + c)
+        px! = a.x - wd.anchor.x
+        py! = a.y - wd.anchor.y
+        pz! = a.z - wd.anchor.z
+        wd.seen(k + c).u = px! * ux! + py! * uy! + pz! * uz!
+        wd.seen(k + c).v = px! * vx! + py! * vy! + pz! * vz!
+    next
+end sub
+
+' Ends the face begun last: its plane from its corners, and
+' the sun's light and tint on it, held under the cap.
+sub face_end (wd as World)
+    dim f as long
+    dim k as long
+    dim a as Vec3
+    dim b as Vec3
+    dim c as Vec3
+    dim nx as single
+    dim ny as single
+    dim nz as single
+    dim size as single
+    dim sun as single
+    dim light as single
+    f = wd.n_faces
+    k = wd.faces(f).first
+    a = wd.vertices(k)
+    b = wd.vertices(k + 1)
+    c = wd.vertices(k + wd.faces(f).n - 1)
+    ' down the face crossed with across it: out of its front
+    vx! = c.x - a.x
+    vy! = c.y - a.y
+    vz! = c.z - a.z
+    ux! = b.x - a.x
+    uy! = b.y - a.y
+    uz! = b.z - a.z
+    nx = vy! * uz! - vz! * uy!
+    ny = vz! * ux! - vx! * uz!
+    nz = vx! * uy! - vy! * ux!
+    size = sqr(nx * nx + ny * ny + nz * nz)
+    nx = nx / size
+    ny = ny / size
+    nz = nz / size
+    wd.faces(f).nx = nx
+    wd.faces(f).ny = ny
+    wd.faces(f).nz = nz
+    wd.faces(f).offset = nx * a.x + ny * a.y + nz * a.z
+    sun = nx * SUN_X + ny * SUN_Y + nz * SUN_Z
+
+    if sun < 0 then sun = 0
+
+    light = SHADE + (FULL - SHADE) * sun
+
+    if light > wd.cap then light = wd.cap
+
+    wd.faces(f).light = light
+    wd.faces(f).tint = mixed(COOL, WARM, sun)
+    wd.n_faces = f + 1
+end sub
+
+' A flat face from corner o, across du for lu and down dv
+' for lv, clockwise seen from its front, its texture
+' anchored at scale texels a unit.
+sub sheet ( _
+    wd as World, _
+    o as Vec3, _
+    du as Vec3, _
+    dv as Vec3, _
+    byval lu as single, _
+    byval lv as single, _
+    byval texture as integer, _
+    byval scale as single _
+)
+    dim c as integer
+    dim s as single
+    dim t as single
+    dim a as Vec3
+    face_begin wd, texture
+
+    for c = 0 to 3
+        s = lu * ((c + 1) \ 2 mod 2)
+        t = lv * (c \ 2)
+        a.x = o.x + du.x * s + dv.x * t
+        a.y = o.y + du.y * s + dv.y * t
+        a.z = o.z + du.z * s + dv.z * t
+        face_corner wd, a, 0, 0
+    next
+
+    anchor_texels wd, scale, scale
+    face_end wd
+end sub
+
+' A floor facing up at height y, from (x, z) east lx and
+' south lz.
+sub flat ( _
+    wd as World, _
+    byval x as single, _
+    byval z as single, _
+    byval lx as single, _
+    byval lz as single, _
+    byval y as single, _
+    byval texture as integer, _
+    byval scale as single _
+)
+    dim o as Vec3
+    dim du as Vec3
+    dim dv as Vec3
+    o = xyz(x, y, z)
+    du = xyz(1, 0, 0)
+    dv = xyz(0, 0, 1)
+    sheet wd, o, du, dv, lx, lz, texture, scale
+end sub
+
+' A box from (x0, y0, z0) to (x1, y1, z1), the faces in
+' sides: its top and bottom of cap_texture, the rest of
+' texture, anchored at across texels a unit along x and z
+' and upward up y; across 0, a whole texture on each face.
+sub box ( _
+    wd as World, _
+    byval x0 as single, _
+    byval y0 as single, _
+    byval z0 as single, _
+    byval x1 as single, _
+    byval y1 as single, _
+    byval z1 as single, _
+    byval texture as integer, _
+    byval cap_texture as integer, _
+    byval across as single, _
+    byval upward as single, _
+    byval sides as integer _
+)
+    dim at(7) as Vec3
+    dim i as integer
+    dim k as integer
+    dim bit as integer
+
+    for i = 0 to 7
+        at(i) = xyz(pick(x0, x1, i and 1), pick(y0, y1, i and 2), _
+            pick(z0, z1, i and 4))
+    next
+
+    bit = 1
+
+    for k = 0 to 5
+        if sides and bit then
+            if k < 2 then
+                box_face wd, at(), k, cap_texture, across, across
+            else
+                box_face wd, at(), k, texture, across, upward
+            end if
+        end if
+
+        bit = bit * 2
+    next
+end sub
+
+' Face k of the box with corners at, anchored at su and sv
+' texels a unit; su 0, a whole texture.
+sub box_face ( _
+    wd as World, _
+    at() as Vec3, _
+    byval k as integer, _
+    byval texture as integer, _
+    byval su as single, _
+    byval sv as single _
+)
+    dim c as integer
+    dim i as integer
+    face_begin wd, texture
+
+    for c = 0 to 3
+        i = val(mid$(BOX_FACES, k * 4 + c + 1, 1))
+        face_corner wd, at(i), SIDE * ((c + 1) \ 2 mod 2), _
+            SIDE * (c \ 2)
+    next
+
+    if su > 0 then anchor_texels wd, su, sv
+
+    face_end wd
+end sub
+
+' A Doric column standing at (x, y, z), height tall: its
+' fluted shaft and its capital under a beam, a part of its
+' own.
+sub column ( _
+    wd as World, _
+    byval x as single, _
+    byval y as single, _
+    byval z as single, _
+    byval height as single _
+)
+    dim top as single
+    top = y + height - CAP_H
+    part_begin wd, SOLID_PART
+    shaft wd, x, z, y, top
+    box wd, x - CAP_HALF, top, z - CAP_HALF, x + CAP_HALF, _
+        y + height, z + CAP_HALF, MOULDING, BLOCKS, 0, 0, _
+        FACE_ALL - FACE_TOP
+    part_end wd
+end sub
+
+' A shaft of SHAFT_SIDES flat sides round (x, z), from y0
+' up to y1.
+sub shaft ( _
+    wd as World, _
+    byval x as single, _
+    byval z as single, _
+    byval y0 as single, _
+    byval y1 as single _
+)
+    dim k as integer
+    dim a as single
+    dim b as single
+    dim next_edge as Vec3
+    dim edge as Vec3
+
+    ' seen from outside, a side's left is the next round
+    for k = 0 to SHAFT_SIDES - 1
+        a = (k + 1) * 2 * PI / SHAFT_SIDES
+        b = k * 2 * PI / SHAFT_SIDES
+        next_edge = xyz(x + SHAFT_R * cos(a), y1, _
+            z + SHAFT_R * sin(a))
+        edge = xyz(x + SHAFT_R * cos(b), y1, z + SHAFT_R * sin(b))
+        face_begin wd, FLUTES
+        face_corner wd, next_edge, 0, 0
+        face_corner wd, edge, SIDE, 0
+        edge.y = y0
+        next_edge.y = y0
+        face_corner wd, edge, SIDE, SIDE
+        face_corner wd, next_edge, 0, SIDE
+        face_end wd
+    next
+end sub
+
+' A beam BEAM_H high on the columns at y, over the ground
+' from (x0, z0) to (x1, z1): its frieze two bays a texture,
+' a triglyph over the column at (ax, az) and every bay on.
+sub beam ( _
+    wd as World, _
+    byval x0 as single, _
+    byval z0 as single, _
+    byval x1 as single, _
+    byval z1 as single, _
+    byval y as single, _
+    byval bay as single, _
+    byval ax as single, _
+    byval az as single _
+)
+    dim top as single
+    top = y + BEAM_H
+    wd.anchor = xyz(ax, top, az)
+    box wd, x0, y, z0, x1, top, z1, FRIEZE, BLOCKS, _
+        SIDE / (2 * bay), SIDE / BEAM_H, FACE_ALL
+    wd.anchor = xyz(0, 0, 0)
+end sub
+
+' A triangle, its apex a then b and c clockwise seen from
+' its front, facing north or south, its texture's texels
+' COARSE a unit.
+sub triangle ( _
+    wd as World, _
+    a as Vec3, _
+    b as Vec3, _
+    c as Vec3, _
+    byval texture as integer _
+)
+    face_begin wd, texture
+    face_corner wd, a, a.x * COARSE, -a.y * COARSE
+    face_corner wd, b, b.x * COARSE, -b.y * COARSE
+    face_corner wd, c, c.x * COARSE, -c.y * COARSE
+    face_end wd
+end sub
+
+' A brazier standing at (x, y, z): a stand, a bowl, and a
+' fire on it.
+sub brazier ( _
+    wd as World, _
+    byval x as single, _
+    byval y as single, _
+    byval z as single _
+)
+    dim top as single
+    top = y + STAND_H
+    part_begin wd, SOLID_PART
+    box wd, x - 0.25, y, z - 0.25, x + 0.25, top, z + 0.25, _
+        BRONZE, BRONZE, 0, 0, FACE_ALL - FACE_BOTTOM
+    box wd, x - BOWL, top, z - BOWL, x + BOWL, top + 0.6, _
+        z + BOWL, BRONZE, BRONZE, 0, 0, FACE_ALL
+    part_end wd
+    wd.fires(wd.n_fires) = xyz(x, top + 0.6, z)
+    wd.n_fires = wd.n_fires + 1
+end sub
+
+' The shadow on the ground of a beam over the ground from
+' (x0, z0) to (x1, z1), at height.
+sub shadow_of ( _
+    wd as World, _
+    byval x0 as single, _
+    byval z0 as single, _
+    byval x1 as single, _
+    byval z1 as single, _
+    byval height as single _
+)
+    dim xs(3) as single
+    dim zs(3) as single
+    dim ox as single
+    dim oz as single
+    ox = -SUN_X / SUN_Y * height
+    oz = -SUN_Z / SUN_Y * height
+    xs(0) = x0 + ox
+    zs(0) = z0 + oz
+    xs(1) = x1 + ox
+    zs(1) = z0 + oz
+    xs(2) = x1 + ox
+    zs(2) = z1 + oz
+    xs(3) = x0 + ox
+    zs(3) = z1 + oz
+    shadow_quad wd, xs(), zs()
+end sub
+
+' A column's shadow, from its foot at (x, z) away from the
+' sun, as wide as its shaft.
+sub column_shadow (wd as World, byval x as single, byval z as single)
+    dim xs(3) as single
+    dim zs(3) as single
+    dim ox as single
+    dim oz as single
+    dim size as single
+    dim px as single
+    dim pz as single
+    ox = -SUN_X / SUN_Y * COLUMN_H
+    oz = -SUN_Z / SUN_Y * COLUMN_H
+    size = sqr(ox * ox + oz * oz)
+    px = -oz / size * SHAFT_R
+    pz = ox / size * SHAFT_R
+    xs(0) = x + px
+    zs(0) = z + pz
+    xs(1) = x - px
+    zs(1) = z - pz
+    xs(2) = x - px + ox
+    zs(2) = z - pz + oz
+    xs(3) = x + px + ox
+    zs(3) = z + pz + oz
+    shadow_quad wd, xs(), zs()
+end sub
+
+' A shadow over the ground through four points, turned to
+' face up.
+sub shadow_quad (wd as World, xs() as single, zs() as single)
+    dim c as integer
+    dim i as integer
+    dim order as string
+
+    ' clockwise seen from above, with x across and z down
+    up! = (zs(3) - zs(0)) * (xs(1) - xs(0))
+    up! = up! - (xs(3) - xs(0)) * (zs(1) - zs(0))
+    order = "0123"
+
+    if up! < 0 then order = "0321"
+
+    face_begin wd, INKED
+
+    for c = 0 to 3
+        i = val(mid$(order, c + 1, 1))
+        face_corner wd, xyz(xs(i), SHADOW_Y, zs(i)), 0, 0
+    next
+
+    face_end wd
+end sub
+
+' The mountains' peaks round the plain, far then near: each
+' at its height.
+sub raise_ranges (hills() as Vec3)
+    dim k as integer
+    dim a as single
+    dim peak as single
+
+    for k = 0 to PEAKS - 1
+        a = k * 2 * PI / PEAKS
+        peak = 70 + 45 * sin(3 * a + 0.5) + 25 * sin(7 * a + 2)
+        peak = peak + 12 * sin(17 * a)
+        hills(0, k) = xyz(FAR_RANGE * cos(a), peak, _
+            ORBIT_Z + FAR_RANGE * sin(a))
+        peak = 25 + 20 * sin(5 * a + 1) + 10 * sin(11 * a + 3)
+        peak = peak + 5 * sin(23 * a)
+        hills(1, k) = xyz(NEAR_RANGE * cos(a), peak, _
+            ORBIT_Z + NEAR_RANGE * sin(a))
+    next
+end sub
+
+' The camera t seconds round its circle, looking in.
+sub aim (cam as Camera, st as Stage, byval t as single)
+    dim a as single
+    dim r as single
+    dim fx as single
+    dim fy as single
+    dim fz as single
+    dim size as single
+    a = START_TURN + TURN * t
+    r = ORBIT + SWAY * sin(t * 0.21)
+    cam.eye = xyz(r * sin(a), LIFT + RISE * sin(t * 0.17 + 1), _
+        ORBIT_Z + r * cos(a))
+    fx = -cam.eye.x
+    fy = LOOK_Y - cam.eye.y
+    fz = LOOK_Z - cam.eye.z
+    size = sqr(fx * fx + fy * fy + fz * fz)
+    cam.ahead = xyz(fx / size, fy / size, fz / size)
+    ' across: ahead crossed with the world's up, level
+    size = sqr(fx * fx + fz * fz)
+    cam.across = xyz(-fz / size, 0, fx / size)
+    ' up: across crossed with ahead
+    cam.up.x = -cam.across.z * cam.ahead.y
+    cam.up.y = cam.across.z * cam.ahead.x - cam.across.x * cam.ahead.z
+    cam.up.z = cam.across.x * cam.ahead.y
+    cam.cx = st.cx
+    cam.cy = st.cy
+    cam.focal = st.h * LENS
+    cam.half_w = st.w / 2
+    cam.half_h = st.h / 2
+    cam.reach_w = sqr(cam.focal * cam.focal + cam.half_w * cam.half_w)
+    cam.reach_h = sqr(cam.focal * cam.focal + cam.half_h * cam.half_h)
+end sub
+
+' How the camera sees part p: UNSEEN, wholly PAST_NEAR, or
+' CUT by NEAR.
+function seen_as (p as Part, cam as Camera) as integer
+    dim dx as single
+    dim dy as single
+    dim dz as single
+    dim x as single
+    dim y as single
+    dim z as single
+    dim r as single
+    seen_as = UNSEEN
+    r = p.radius
+    dx = p.centre.x - cam.eye.x
+    dy = p.centre.y - cam.eye.y
+    dz = p.centre.z - cam.eye.z
+    z = dx * cam.ahead.x + dy * cam.ahead.y + dz * cam.ahead.z
+
+    if z + r < NEAR or z - r > FAR then exit function
+
+    x = abs(dx * cam.across.x + dz * cam.across.z)
+    y = abs(dx * cam.up.x + dy * cam.up.y + dz * cam.up.z)
+
+    ' past the screen's side or its top or foot
+    if x * cam.focal - z * cam.half_w > r * cam.reach_w then
+        exit function
+    end if
+
+    if y * cam.focal - z * cam.half_h > r * cam.reach_h then
+        exit function
+    end if
+
+    seen_as = PAST_NEAR
+
+    if z - r < NEAR then seen_as = CUT
+end function
+
+' Point (x, y, z) of the world into q, the camera's space.
+sub seen_point ( _
+    cam as Camera, _
+    byval x as single, _
+    byval y as single, _
+    byval z as single, _
+    q as Vertex _
+)
+    x = x - cam.eye.x
+    y = y - cam.eye.y
+    z = z - cam.eye.z
+    q.x = x * cam.across.x + z * cam.across.z
+    q.y = x * cam.up.x + y * cam.up.y + z * cam.up.z
+    q.z = x * cam.ahead.x + y * cam.ahead.y + z * cam.ahead.z
+end sub
+
+' Point p of the world at height y into q, on the screen:
+' a point past NEAR.
+sub put_point ( _
+    cam as Camera, _
+    p as Vec3, _
+    byval y as single, _
+    q as Vertex _
+)
+    dim dx as single
+    dim dy as single
+    dim dz as single
+    dim k as single
+    dx = p.x - cam.eye.x
+    dy = y - cam.eye.y
+    dz = p.z - cam.eye.z
+    q.z = dx * cam.ahead.x + dy * cam.ahead.y + dz * cam.ahead.z
+    k = cam.focal / q.z
+    q.x = cam.cx + (dx * cam.across.x + dz * cam.across.z) * k
+    q.y = cam.cy - (dx * cam.up.x + dy * cam.up.y + dz * cam.up.z) * k
+end sub
+
+' Polygon q's n corners from first cut at NEAR, into r: how
+' many are left.
+function clipped ( _
+    q() as Vertex, _
+    byval first as long, _
+    byval n as integer, _
+    r() as Vertex _
+) as integer
+    dim c as integer
+    dim i as long
+    dim j as long
+    dim m as integer
+    dim t as single
+
+    for c = 0 to n - 1
+        i = first + c
+        j = first + (c + 1) mod n
+
+        if q(i).z >= NEAR then
+            r(m) = q(i)
+            m = m + 1
+        end if
+
+        if (q(i).z >= NEAR) <> (q(j).z >= NEAR) then
+            t = (NEAR - q(i).z) / (q(j).z - q(i).z)
+            r(m).x = q(i).x + t * (q(j).x - q(i).x)
+            r(m).y = q(i).y + t * (q(j).y - q(i).y)
+            r(m).z = NEAR
+            r(m).u = q(i).u + t * (q(j).u - q(i).u)
+            r(m).v = q(i).v + t * (q(j).v - q(i).v)
+            m = m + 1
+        end if
+    next
+
+    clipped = m
+end function
+
+' Polygon q's n corners from first, in the camera's space,
+' cut at NEAR into r, projected and drawn: src's texels, or
+' colour.
+sub put_cut ( _
+    byval dst as long, _
+    q() as Vertex, _
+    byval first as long, _
+    byval n as integer, _
+    r() as Vertex, _
+    cam as Camera, _
+    byval src as long, _
+    byval colour as long, _
+    byval flags as integer _
+)
+    dim c as integer
+    n = clipped(q(), first, n, r())
+
+    if n < 3 then exit sub
+
+    for c = 0 to n - 1
+        r(c).x = cam.cx + cam.focal * r(c).x / r(c).z
+        r(c).y = cam.cy - cam.focal * r(c).y / r(c).z
+    next
+
+    gfx.draw.poly dst, r(), 0, n, src, colour, flags
+end sub
+
+' The sky in bands down to the horizon, the land under it.
+sub draw_sky (byval dst as long, cam as Camera, st as Stage)
+    dim lx as single
+    dim lz as single
+    dim size as single
+    dim horizon as single
+    dim lo as single
+    dim hi as single
+    dim k as integer
+    f% = gfx.draw.FILL
+    ' the horizon ahead: a level line's height on the screen
+    size = sqr(cam.ahead.x * cam.ahead.x + cam.ahead.z * cam.ahead.z)
+    lx = cam.ahead.x / size
+    lz = cam.ahead.z / size
+    up! = lx * cam.up.x + lz * cam.up.z
+    away! = lx * cam.ahead.x + lz * cam.ahead.z
+    horizon = cam.cy - cam.focal * up! / away!
+    gfx.draw.rect dst, 0, horizon, st.w - 1, st.h - 1, LAND, f%
+
+    for k = 0 to BANDS - 1
+        lo = horizon - val(mid$(SKY_EDGES, k * 2 + 1, 2)) * st.h / 100
+
+        if lo < 0 then exit for
+
+        hi = 0
+
+        if k < BANDS - 1 then
+            hi = horizon - val(mid$(SKY_EDGES, k * 2 + 3, 2)) * _
+                st.h / 100
+        end if
+
+        gfx.draw.rect dst, 0, hi, st.w - 1, lo, hex_at&(SKY, k), f%
+    next
+end sub
+
+' The sun low over the land: its haze added in rings, then
+' its disc.
+sub draw_sun (byval dst as long, cam as Camera, st as Stage)
+    dim x as single
+    dim y as single
+    dim z as single
+    dim r as integer
+    z = SUN_X * cam.ahead.x + SUN_Y * cam.ahead.y + _
+        SUN_Z * cam.ahead.z
+
+    if z <= 0 then exit sub
+
+    x = SUN_X * cam.across.x + SUN_Z * cam.across.z
+    y = SUN_X * cam.up.x + SUN_Y * cam.up.y + SUN_Z * cam.up.z
+    x = cam.cx + cam.focal * x / z
+    y = cam.cy - cam.focal * y / z
+    gfx.draw.set_alpha 2
+
+    for r = 64 to 8 step -4
+        gfx.draw.circle dst, x, y, r * st.unit, HAZE, _
+            gfx.draw.FILL + gfx.draw.ADD
+    next
+
+    gfx.draw.set_alpha FULL
+    gfx.draw.circle dst, x, y, 7 * st.unit, SUN_DISC, gfx.draw.FILL
+end sub
+
+' The mountain ranges round the plain, the far one first,
+' in their colours over the sky: the segments ahead.
+sub draw_ranges ( _
+    byval dst as long, _
+    cam as Camera, _
+    hills() as Vec3, _
+    q() as Vertex _
+)
+    dim g as integer
+    dim k as integer
+    dim nxt as integer
+    dim d as single
+    dim size as single
+    dim colour as long
+    size = sqr(cam.ahead.x * cam.ahead.x + cam.ahead.z * cam.ahead.z)
+    fx! = cam.ahead.x / size
+    fz! = cam.ahead.z / size
+
+    for g = 0 to RANGES - 1
+        d = FAR_RANGE
+        colour = FAR_HILLS
+
+        if g then d = NEAR_RANGE
+        if g then colour = NEAR_HILLS
+
+        for k = 0 to PEAKS - 1
+            ahead! = hills(g, k).x * fx!
+            ahead! = ahead! + (hills(g, k).z - ORBIT_Z) * fz!
+
+            if ahead! < SEEN_COS * d then continue for
+
+            nxt = (k + 1) mod PEAKS
+            put_point cam, hills(g, k), hills(g, k).y, q(0)
+            put_point cam, hills(g, nxt), hills(g, nxt).y, q(1)
+            put_point cam, hills(g, nxt), HILLS_FOOT, q(2)
+            put_point cam, hills(g, k), HILLS_FOOT, q(3)
+            gfx.draw.poly dst, q(), 0, 4, 0, colour, gfx.draw.FILL
+        next
+    next
+end sub
+
+' The world's parts on the screen: the solid ones, then the
+' shadows over them, then the water at its frame ripple.
+sub draw_world ( _
+    byval dst as long, _
+    wd as World, _
+    cam as Camera, _
+    byval ripple as integer, _
+    r() as Vertex _
+)
+    dim look as integer
+    dim p as long
+    dim f as integer
+    dim shift as integer
+    test% = gfx.draw.PERSPECTIVE + gfx.draw.DEPTH_TEST
+
+    for p = 0 to wd.n_parts - 1
+        wd.parts(p).seen = seen_as(wd.parts(p), cam)
+    next
+
+    for look = SOLID_PART to WATER_PART
+        shift = 0
+
+        select case look
+            case SOLID_PART
+                f = test% + gfx.draw.DEPTH_WRITE
+            case SHADOW_PART
+                f = gfx.draw.FILL + gfx.draw.BLEND + test%
+                gfx.draw.set_light FULL
+                gfx.draw.set_tint &HFFFFFF
+                gfx.draw.set_alpha SHADOW_ALPHA
+            case else
+                f = gfx.draw.BLEND + test%
+                gfx.draw.set_alpha WATER_ALPHA
+                shift = ripple
+        end select
+
+        for p = 0 to wd.n_parts - 1
+            if wd.parts(p).look <> look then continue for
+            if wd.parts(p).seen = UNSEEN then continue for
+
+            draw_part dst, wd.faces(), wd.vertices(), wd.seen(), _
+                wd.textures(), wd.parts(p), cam, f, shift, r()
+        next
+    next
+
+    gfx.draw.set_alpha FULL
+    gfx.draw.set_light FULL
+    gfx.draw.set_tint &HFFFFFF
+end sub
+
+' Part p's faces that face the eye, each in its light and
+' tint, textures shift on: their corners on the screen, or,
+' the part CUT, in the camera's space and cut at NEAR.
+sub draw_part ( _
+    byval dst as long, _
+    faces() as Face, _
+    vertices() as Vec3, _
+    seen() as Vertex, _
+    sources() as long, _
+    p as Part, _
+    cam as Camera, _
+    byval flags as integer, _
+    byval shift as integer, _
+    r() as Vertex _
+)
+    dim f as long
+    dim i as long
+    dim first as long
+    dim last as long
+    dim n as integer
+    dim t as integer
+    dim light as integer
+    dim tint as long
+    dim src as long
+    dim colour as long
+    dim crossing as integer
+    dim dx as single
+    dim dy as single
+    dim dz as single
+    dim z as single
+    dim k as single
+    ex! = cam.eye.x
+    ey! = cam.eye.y
+    ez! = cam.eye.z
+    ax! = cam.across.x
+    az! = cam.across.z
+    ux! = cam.up.x
+    uy! = cam.up.y
+    uz! = cam.up.z
+    fx! = cam.ahead.x
+    fy! = cam.ahead.y
+    fz! = cam.ahead.z
+    cx! = cam.cx
+    cy! = cam.cy
+    focal! = cam.focal
+    crossing = p.seen = CUT
+    light = -1
+    tint = -1
+
+    for f = p.first_face to p.last_face
+        ' the eye behind its plane
+        if faces(f).nx * ex! + faces(f).ny * ey! + faces(f).nz * ez! _
+            <= faces(f).offset then continue for
+
+        n = faces(f).n
+        first = faces(f).first
+        last = first + n - 1
+
+        if crossing then
+            for i = first to last
+                dx = vertices(i).x - ex!
+                dy = vertices(i).y - ey!
+                dz = vertices(i).z - ez!
+                seen(i).x = dx * ax! + dz * az!
+                seen(i).y = dx * ux! + dy * uy! + dz * uz!
+                seen(i).z = dx * fx! + dy * fy! + dz * fz!
+            next
+        else
+            for i = first to last
+                dx = vertices(i).x - ex!
+                dy = vertices(i).y - ey!
+                dz = vertices(i).z - ez!
+                z = dx * fx! + dy * fy! + dz * fz!
+                k = focal! / z
+                seen(i).x = cx! + (dx * ax! + dz * az!) * k
+                seen(i).y = cy! - (dx * ux! + dy * uy! + dz * uz!) * k
+                seen(i).z = z
+            next
+        end if
+
+        t = faces(f).texture
+        src = 0
+        colour = INK
+
+        if t <> INKED then
+            src = sources(t + shift)
+            colour = 0
+
+            if faces(f).light <> light then
+                light = faces(f).light
+                gfx.draw.set_light light
+            end if
+
+            if faces(f).tint <> tint then
+                tint = faces(f).tint
+                gfx.draw.set_tint tint
+            end if
+        end if
+
+        if crossing then
+            put_cut dst, seen(), first, n, r(), cam, src, colour, _
+                flags
+        else
+            gfx.draw.poly dst, seen(), first, n, src, colour, flags
+        end if
+    next
+end sub
+
+' Each fire: its glow, then its flame at its frame, added
+' over what is nearer.
+sub draw_fires ( _
+    byval dst as long, _
+    wd as World, _
+    cam as Camera, _
+    byval t as single, _
+    q() as Vertex, _
+    r() as Vertex _
+)
+    dim i as integer
+    dim frame as integer
+    dim foot as single
+    f% = gfx.draw.PERSPECTIVE + gfx.draw.ADD + gfx.draw.DEPTH_TEST
+    foot = FLAME_H / 2 - GLOW_SIZE / 2
+
+    for i = 0 to wd.n_fires - 1
+        frame = (int(t * FLICKER) + i) mod PHASES
+        gfx.draw.set_alpha GLOW_ALPHA
+        billboard dst, wd.fires(i), foot, GLOW_SIZE, GLOW_SIZE, _
+            wd.textures(GLOW), f%, cam, q(), r()
+        gfx.draw.set_alpha FULL
+        billboard dst, wd.fires(i), 0, FLAME_W, FLAME_H, _
+            wd.textures(FLAME + frame), f%, cam, q(), r()
+    next
+end sub
+
+' Texture src upright, facing the eye, wide by high, its
+' foot's middle that far over b.
+sub billboard ( _
+    byval dst as long, _
+    b as Vec3, _
+    byval foot as single, _
+    byval wide as single, _
+    byval high as single, _
+    byval src as long, _
+    byval flags as integer, _
+    cam as Camera, _
+    q() as Vertex, _
+    r() as Vertex _
+)
+    dim c as integer
+    dim aside as single
+    dim y as single
+
+    ' clockwise from the top left, as the eye sees it
+    for c = 0 to 3
+        aside = ((c + 1) \ 2 mod 2 - 0.5) * wide
+        y = b.y + foot + high * (1 - c \ 2)
+        seen_point cam, b.x + cam.across.x * aside, y, _
+            b.z + cam.across.z * aside, q(c)
+        q(c).u = SIDE * ((c + 1) \ 2 mod 2)
+        q(c).v = SIDE * (c \ 2)
+    next
+
+    put_cut dst, q(), 0, 4, r(), cam, src, 0, flags
+end sub
+
+' The key along dst's top, the frame rate at its foot.
+sub show_help ( _
+    byval dst as long, _
+    st as Stage, _
+    byval moving as integer, _
+    m as Meter _
+)
+    grey& = &HC8C8C8
+    z% = st.zoom
+    edge% = MARGIN * z%
+    t$ = "SPACE camera " + on_off$(moving)
+    label dst, st.top, edge%, edge%, t$, grey&, z%
+    foot% = st.h - edge% - st.text_h
+    label dst, st.foot, edge%, foot%, rate_text$(m), grey&, z%
+end sub

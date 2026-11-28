@@ -1378,6 +1378,10 @@ DEMO_EDITS = {
         ("no text", "    show_help canvas&, st, turning%, smooth%, fps\n", ""),
         ("no clouds", "    draw_clouds world&, clouds()\n", ""),
     ),
+    "TEMPLE": (
+        ("no text", "    show_help canvas&, st, moving%, fps\n", ""),
+        ("no fires", "    draw_fires canvas&, world, cam, alive!, q(), r()\n", ""),
+    ),
     # each draw gone, the BASIC working it out kept
     "MEADOW": (
         ("no text", "    gfx.draw.text canvas&, MARGIN, y%, t$, ink&\n", ""),
@@ -1435,7 +1439,8 @@ def demo_program(name: str, seconds: float, vsync: bool, edits: int, *, frames: 
     flip = DEMO_FLIP_FRAMES if frames else DEMO_FLIP
     src, f = re.subn(r"(?m)^(\s*)gfx\.display\.flip$",
                      lambda m: flip.format(i=m[1], seconds=seconds, frames=frames), src)
-    assert all(n == 1 for n in (w, h, o, v, f)), f"{name}: its size, open, VSYNC or flip not found once"
+    # a demo unsynced as shipped has no VSYNC to drop
+    assert all(n == 1 for n in (w, h, o, f)) and v <= 1, f"{name}: its size, open, VSYNC or flip not found once"
     for _, old, new in DEMO_EDITS.get(name, ())[:edits]:
         assert src.count(old) == 1, f"{name}: {old!r} not found once"
         src = src.replace(old, new)
