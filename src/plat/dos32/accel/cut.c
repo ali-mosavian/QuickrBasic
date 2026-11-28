@@ -1,7 +1,7 @@
-/* A triangle cut at a texture's tiles and a wrap's periods (cut.h). */
+/* A triangle cut to a card's reach, then at a texture's tiles and a wrap's periods (cut.h). */
 #include "plat/dos32/accel/cut.h"
 
-enum { S, T, STEPS = 4, CHANNEL = 255, BYTE = 8 };
+enum { S, T, X, Y, STEPS = 4, CHANNEL = 255, BYTE = 8 };
 
 /* A corner as it goes across the screen, linearly: s and t times q. */
 typedef struct {
@@ -73,10 +73,14 @@ static float texel(const Corner *const c, const uint32_t axis)
     return (axis == S ? c->s : c->t) / c->q;
 }
 
-/* How far c is on the kept side of axis's line at: texels at least at when above, else at most. */
+/* How far c is on the kept side of axis's line at: at least at when above, else at most; texels
+   along S and T, pixels along X and Y. */
 static float side(const Corner *const c, const uint32_t axis, const float at, const bool above)
 {
-    const float d = (axis == S ? c->s : c->t) - at * c->q;
+    const float d = axis == S   ? c->s - at * c->q
+                    : axis == T ? c->t - at * c->q
+                    : axis == X ? c->x - at
+                                : c->y - at;
     return above ? d : -d;
 }
 
@@ -98,8 +102,18 @@ static void clipped(
         if (da >= 0 && out->n < CUT_CORNERS)
             out->c[out->n++] = *a;
 
-        if ((da >= 0) != (db >= 0) && out->n < CUT_CORNERS)
-            out->c[out->n++] = between(a, b, da / (da - db));
+        if ((da >= 0) == (db >= 0) || out->n == CUT_CORNERS)
+            continue;
+
+        Corner c = between(a, b, da / (da - db));
+
+        /* on the line itself: past a card's reach by a rounding, a corner wraps round */
+        if (axis == X)
+            c.x = at;
+        else if (axis == Y)
+            c.y = at;
+
+        out->c[out->n++] = c;
     }
 }
 
@@ -218,6 +232,48 @@ static bool within(const AccelVertex v[3], const uint32_t axis, const float from
     return true;
 }
 
+bool cut_inside(const AccelRect *const band, const AccelVertex *const v, const uint32_t n)
+{
+    const float x0 = (float)band->x, y0 = (float)band->y;
+    const float x1 = (float)(band->x + band->w), y1 = (float)(band->y + band->h);
+
+    for (uint32_t i = 0; i < n && band->w; i++)
+        if (v[i].x < x0 || v[i].x > x1 || v[i].y < y0 || v[i].y > y1)
+            return false;
+
+    return true;
+}
+
+/* Triangle v's part within g's band, cut by x and y, on as triangles. */
+static void banded(
+    const CutGrid *const g,
+    const AccelVertex v[3],
+    CutPiece *const piece,
+    void *const ctx
+)
+{
+    const AccelRect *const b = &g->band;
+    const float from[] = {(float)b->x, (float)b->y};
+    const float to[] = {(float)(b->x + b->w), (float)(b->y + b->h)};
+    Poly p = {{corner(&v[0]), corner(&v[1]), corner(&v[2])}, 3}, q;
+
+    for (uint32_t axis = X; axis <= Y; axis++) {
+        clipped(&p, &q, axis, from[axis - X], true);
+        clipped(&q, &p, axis, to[axis - X], false);
+    }
+
+    /* its corners on the band's edges, a rounding past them is not cut again */
+    CutGrid within = *g;
+
+    within.band.w = 0;
+
+    for (uint32_t i = 1; i + 1 < p.n; i++) {
+        const AccelVertex t[3] = {vertex(&p.c[0]), vertex(&p.c[i]), vertex(&p.c[i + 1])};
+
+        cut_triangle(&within, t, piece, ctx);
+    }
+}
+
 void cut_triangle(
     const CutGrid *const g,
     const AccelVertex v[3],
@@ -225,6 +281,11 @@ void cut_triangle(
     void *const ctx
 )
 {
+    if (!cut_inside(&g->band, v, 3)) {
+        banded(g, v, piece, ctx);
+        return;
+    }
+
     const bool wrap_s = g->wrap_s && !within(v, S, (float)g->wrap.x, (float)g->wrap.w);
     const bool wrap_t = g->wrap_t && !within(v, T, (float)g->wrap.y, (float)g->wrap.h);
 

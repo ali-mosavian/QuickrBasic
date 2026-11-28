@@ -114,6 +114,17 @@ static uint32_t buffer_of(const Tdfx *const c, const uint32_t slot)
     return slot == ACCEL_SCREEN || c->targets[slot].kept ? c->shown ^ 1 : 0;
 }
 
+/* How far past a target a corner may lie: x and y are 12.4 fixed point, so a corner past 2047
+   wraps round, and every target lies within a buffer's stride and rows. */
+static uint16_t reach_of(const Tdfx *const c)
+{
+    enum { FIXED_MOST = 2047 };
+
+    const uint32_t extent = c->stride > c->rows ? c->stride : c->rows;
+
+    return (uint16_t)(extent < FIXED_MOST ? FIXED_MOST - extent : 1);
+}
+
 static uint32_t row_of(const Tdfx *const c, const uint32_t slot)
 {
     return slot == ACCEL_SCREEN ? c->top : c->targets[slot].y;
@@ -336,6 +347,7 @@ opened(const PciFunction *const pci, const uint16_t w, const uint16_t h, AccelCa
         .aspect = ASPECT,
         .memory = c->texture_bytes,
         .millihz = c->millihz,
+        .reach = reach_of(c),
     };
 
     return true;

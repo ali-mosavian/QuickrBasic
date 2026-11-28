@@ -171,7 +171,7 @@ TEST(accel_cut_leaves_a_wrap_in_one_period_whole)
 
 /* ---- the player against a driver that records its calls (player.c) ---- */
 
-enum { SCREEN_W = 320, SCREEN_H = 200, SLOTS = 8, TILE = 256 * 32, CALLS = 256 };
+enum { SCREEN_W = 320, SCREEN_H = 200, SLOTS = 8, TILE = 256 * 32, CALLS = 256, REACH = 64 };
 
 /* A call a letter: Texture, Upload, Forget, tarGet, Drop, Aim, State, triangles (V), shoW,
    Carry, Read, cLear, Indexed, Palette. */
@@ -191,6 +191,7 @@ static struct {
     uint32_t sent;       /* texels uploaded */
     uint32_t filled;     /* the last clear's colour */
     uint8_t what;        /* and what it cleared */
+    float past, area;    /* the furthest a corner lay past the screen's sides; the polygons' area */
 } fake;
 
 static void called(const char c)
@@ -217,6 +218,7 @@ static bool ACCEL_CALL fake_open(const PciFunction *card, uint16_t w, uint16_t h
         .aspect = 3,
         .memory = 2 << 20,
         .millihz = 60000,
+        .reach = REACH,
     };
 
     return true;
@@ -305,8 +307,24 @@ static void ACCEL_CALL fake_fans(const AccelVertex *v, const uint8_t *sides, uin
 {
     called('V');
 
-    for (uint32_t i = 0; i + 1 < n; i++)
-        v += sides[i];
+    for (uint32_t i = 0; i < n; i++) {
+        float twice = 0;
+
+        for (uint32_t k = 0; k < sides[i]; k++) {
+            const AccelVertex *const a = &v[k], *const b = &v[k + 1 < sides[i] ? k + 1 : 0];
+            const float past[] = {-a->x, a->x - SCREEN_W, -a->y, a->y - SCREEN_H};
+
+            for (uint32_t j = 0; j < 4; j++)
+                fake.past = past[j] > fake.past ? past[j] : fake.past;
+
+            twice += a->x * b->y - b->x * a->y;
+        }
+
+        fake.area += (twice < 0 ? -twice : twice) / 2;
+
+        if (i + 1 < n)
+            v += sides[i];
+    }
 
     const uint8_t k = sides[n - 1];
 
@@ -569,6 +587,27 @@ TEST(accel_player_sends_a_quads_two_triangles_as_one_polygon)
     CHECK(played(SHOWN, from, true) && calls_of('V') == 1 && fake.sides == 4);
     CHECK(fake.last[1].x == 10 && fake.last[1].y == 12);
     CHECK(fake.last[2].x == 2 && fake.last[2].y == 12);
+    accel_close();
+}
+
+/* A corner past the card's reach wraps round on the card: TEMPLE's ground, cut only at the near
+   plane, sent corners 51,000 pixels off the screen, and a Voodoo drew its meadow over the plaza.
+   A polygon's part within the reach goes, cut by x and y: no corner past it, its area kept. */
+TEST(accel_player_cuts_a_polygon_to_the_cards_reach)
+{
+    opened();
+    begun(16, 16);
+
+    const uint32_t from = list.n;
+
+    box(SOLID, 0, 0, 0, 50000, 10, 0, 0);
+    box(TEXTURED, ART, 0, 20, 10, 50000, 0, 16);
+    CHECK(played(SHOWN, from, true));
+    CHECK(fake.past <= REACH);
+
+    const float want = (SCREEN_W + REACH) * 10 + 10 * (SCREEN_H + REACH - 20);
+
+    CHECK(fake.area > want - 0.5f && fake.area < want + 0.5f);
     accel_close();
 }
 

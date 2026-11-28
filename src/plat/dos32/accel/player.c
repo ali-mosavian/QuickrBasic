@@ -1136,7 +1136,9 @@ static void piece(
 {
     Pieces *const c = ctx;
 
-    c->s.texture = c->tiles[row * c->t->grid.across + column];
+    if (c->tiles)
+        c->s.texture = c->tiles[row * c->t->grid.across + column];
+
     drawn(&c->s, v, n);
 }
 
@@ -1380,9 +1382,14 @@ static void triangles_drawn(
             : nullptr,
         {.source = pl->source, .blend = blend, .alpha = alpha, .depth = pl->depth},
     };
+    /* the x and y the card takes: the pass's sides and its reach past them */
+    const int32_t reach = p.card.reach;
+    const AccelRect band =
+        reach ? (AccelRect){-reach, -reach, p.pass->w + 2 * reach, p.pass->h + 2 * reach}
+              : (AccelRect){};
     /* the grid of the wrap's rectangle last met: a draw's triangles share it; whole, a triangle
-       needs no cut; ready, the state sent is theirs */
-    CutGrid g = {};
+       needs no cut but to the band; ready, the state sent is theirs */
+    CutGrid g = {.across = 1, .down = 1, .band = band};
     uint16_t gridded_for[RECT] = {};
     bool grid = false, whole = false, ready = false;
 
@@ -1416,6 +1423,7 @@ static void triangles_drawn(
             uint8_t flags;
 
             g = gridded(t, (uint8_t)(pl->flags & ~cut), r, &flags);
+            g.band = band;
             memcpy(gridded_for, r, sizeof r);
             c.s.flags = flags | (alone ? ACCEL_REPLACE : 0);
             c.s.texture = c.tiles[0];
@@ -1436,10 +1444,10 @@ static void triangles_drawn(
         for (uint32_t k = 0; k < n && !texel; k++)
             v[k].colour = indices_colour(v[k].colour, p.colours, held);
 
-        if (v != kept && ok == (1u << n) - 1)
+        if (v != kept && ok == (1u << n) - 1 && cut_inside(&band, v, n))
             continue;
 
-        if (v != kept) { /* a corner not fetched: each triangle whose are, alone */
+        if (v != kept) { /* a corner not fetched or past the band: each triangle alone */
             unroomed();
             memcpy(kept, v, n * sizeof *v);
         }
@@ -1455,7 +1463,7 @@ static void triangles_drawn(
 
             const AccelVertex *const tri = kept + k; /* a, b, c; then a, c, d */
 
-            if (t && !whole) {
+            if ((t && !whole) || !cut_inside(&band, tri, 3)) {
                 cut_triangle(&g, tri, piece, &c);
                 ready = false; /* a piece's tile may be another's */
                 continue;

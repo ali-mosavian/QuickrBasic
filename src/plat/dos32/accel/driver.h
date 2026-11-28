@@ -20,8 +20,8 @@
 #define ACCEL_CALL QX_CALL
 
 /* ABI 2 adds indexed textures and their palette; 3, write combining; 4, polygons; 5, a palette's
-   entries set in part. */
-enum { ACCEL_ABI = 5 };
+   entries set in part; 6, a corner's reach. */
+enum { ACCEL_ABI = 6 };
 
 /* A card's PCI ID as accel_ids holds it. */
 #define ACCEL_ID(vendor, device) ((uint32_t)(vendor) << 16 | (uint32_t)(device))
@@ -39,12 +39,13 @@ typedef struct {
 
 /* An open card: its textures' sides powers of two from 1 << least up to side, the longer at most
    1 << aspect times the shorter, memory their bytes in all; its screen's refresh in millihertz, 0
-   unknown. */
+   unknown; how far past a target's sides a corner may lie, in pixels, 0 any. */
 typedef struct {
     uint16_t side;
     uint8_t least, aspect;
     uint32_t memory;
     uint32_t millihz;
+    uint16_t reach;
 } AccelCard;
 
 /* What a pixel is: the colour alone; the texture's texel times the colour; or the colour, its
