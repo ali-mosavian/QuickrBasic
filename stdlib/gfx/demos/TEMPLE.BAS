@@ -17,8 +17,10 @@ const ESC = 27
 const FULL = 63
 ' text's distance from the edges, in its own pixels
 const MARGIN = 4
-' a texture's side, in texels; it repeats past its edges
+' a texture's side, in texels, and the water's; it repeats
+' past its edges
 const SIDE = 64
+const WATER_SIDE = 32
 ' the textures; WATER and FLAME have PHASES frames; HALO
 ' is the sun's
 const PAVING = 0
@@ -32,10 +34,10 @@ const MOSAIC = 7
 const BRONZE = 8
 const GLOW = 9
 const WATER = 10
-const FLAME = 14
-const HALO = 18
-const TEXTURES = 19
-const PHASES = 4
+const FLAME = 18
+const HALO = 26
+const TEXTURES = 27
+const PHASES = 8
 ' a face drawn in a colour, not a texture
 const INKED = -1
 ' how a part is drawn: solid, a shadow, water
@@ -87,7 +89,7 @@ const SHADOW_ALPHA = 30
 const WATER_ALPHA = 44
 const GLOW_ALPHA = 16
 ' water's frames and flames' a second
-const RIPPLES = 5
+const RIPPLES = 8
 const FLICKER = 11
 
 ' the camera's circle: its centre's z, radius and swing,
@@ -225,10 +227,14 @@ const PAINT_RED = &H9A3A28
 const ROOF_DARK = &H6A2A18
 const ROOF_TILE = &HB4583A
 const ROOF_LIT = &HD27A52
-' the meadow
-const GRASS_MID = &H55703A
-const GRASS_LIGHT = &H6B8A44
-const GRASS_DARK = &H425A2C
+' the meadow: its blades' roots and tips, dry grass; its
+' tussocks' height in texels, and the share of the sun a
+' tussock's shadow keeps, blades letting some through
+const BLADE_ROOT = &H3D5727
+const BLADE_TIP = &H6F8A3E
+const STRAW = &H7D764A
+const TUSSOCK_H = 1
+const SHADOW_KEEPS = 0.5
 ' the basin's tiles and grout
 const MOSAIC_A = &H2E7C84
 const MOSAIC_B = &H3A96A0
@@ -238,10 +244,21 @@ const GROUT = &H1C4448
 const BRONZE_MID = &H7A5A32
 const BRONZE_LIGHT = &H9C7A44
 const BRONZE_DARK = &H5A4024
-' the water
-const WATER_DEEP = &H1E5C7C
-const WATER_MID = &H2E7896
-const WATER_CREST = &H6AB4C8
+' the water: its own colour, its reflectance head on; the
+' wind along u and v, the
+' waves across the texture at the spectrum's peak and at
+' most, the weakest wave kept against the strongest, the
+' slopes' spread, and the steps of a spread in which the
+' water's shades are kept
+const WATER_BODY = &H0C3848
+const HEAD_ON = 0.02
+const WIND_U = 0.6
+const WIND_V = 0.8
+const PEAK_WAVES = 2
+const MOST_WAVES = 6
+const WEAKEST_WAVE = 0.3
+const SLOPE_SPREAD = 0.045
+const SLOPE_STEPS = 4
 ' a flame's layers, outside in
 const FLAMES = "B0300CE8641AFFB43CFFF2C8"
 const FLAME_HALF = 18
@@ -367,6 +384,8 @@ for i = 0 to TEXTURES - 1
     world.textures(i) = new_texture(i)
 next
 
+paint_water world.textures()
+
 build world
 raise_ranges hills()
 make_bands sky_bands()
@@ -417,6 +436,11 @@ function new_texture (byval which as integer) as long
     if which = HALO then wide% = size%
     if which = FLUTES then wide% = SHAFT_SIDES * BAND
 
+    if which >= WATER and which < WATER + PHASES then
+        size% = WATER_SIDE
+        wide% = size%
+    end if
+
     s& = gfx.surface.new(wide%, size%)
 
     select case which
@@ -441,7 +465,7 @@ function new_texture (byval which as integer) as long
         case GLOW
             paint_glow s&
         case WATER to WATER + PHASES - 1
-            paint_water s&, which - WATER
+            ' painted together, by paint_water
         case HALO
             paint_halo s&
         case else
@@ -662,22 +686,232 @@ sub paint_roof (byval s as long)
     next
 end sub
 
-' Grass with tufts placed by rule, light and dark.
+' Grass seen from above, a texel holding many blades: a
+' field of tussocks from noise at three scales, lit by its
+' normals toward the sun and shadowed where it rises past
+' the sun's ray, the light averaging 1; coloured root to
+' tip by height, with a grain of more or fewer tips a
+' texel, yellower where noise says it is dry. Every step
+' wraps, so the texture tiles.
 sub paint_grass (byval s as long)
+    dim size as integer
+    size = gfx.surface.width(s)
+    dim heights(size - 1, size - 1) as single
+    dim dry(size - 1, size - 1) as single
+    dim lit(size - 1, size - 1) as single
+    dim texels(size - 1, size - 1) as long
     dim k as integer
     dim x as integer
     dim y as integer
-    dim c as long
-    gfx.draw.clear s, GRASS_MID
+    dim mean as single
+    dim level as single
 
-    for k = 0 to 47
-        x = (k * 37 + (k \ 4) * 11) mod SIDE
-        y = (k * 19 + (k * k) mod 13) mod SIDE
-        c = GRASS_DARK
+    for k = 0 to 2
+        add_noise heights(), size, 8 * 2 ^ k, k + 1, _
+            TUSSOCK_H * 2 ^ (2 - k) / 7
+    next
 
-        if k mod 3 = 0 then c = GRASS_LIGHT
+    for k = 0 to 1
+        add_noise dry(), size, 2 * 2 ^ k, k + 4, 2 ^ (1 - k) / 3
+    next
 
-        gfx.draw.line s, x, y, x + 1, y - 2, c
+    for y = 0 to size - 1
+        for x = 0 to size - 1
+            lit(x, y) = grass_light(heights(), size, x, y)
+            mean = mean + lit(x, y) / size / size
+        next
+    next
+
+    for y = 0 to size - 1
+        for x = 0 to size - 1
+            level = 0.55 * heights(x, y) / TUSSOCK_H _
+                + 0.45 * lattice(x, y, 6)
+            texels(x, y) = scaled(mixed(mixed(BLADE_ROOT, _
+                BLADE_TIP, level), STRAW, 0.7 * small(2 _
+                * large(dry(x, y) - 0.45, 0), 1)), _
+                lit(x, y) / mean)
+        next
+    next
+
+    draw_texels s, texels(), size
+end sub
+
+' The light on grass's texel (x, y) from the field of
+' heights: by its normal toward the sun, less where
+' shadowed.
+function grass_light ( _
+    heights() as single, _
+    byval size as integer, _
+    byval x as integer, _
+    byval y as integer _
+) as single
+    dim nx as single
+    dim nz as single
+    dim sun as single
+    dim climb as single
+    dim reach as single
+    dim i as integer
+    nx = heights(wrapped(x - 1, size), y) _
+        - heights(wrapped(x + 1, size), y)
+    nz = heights(x, wrapped(y - 1, size)) _
+        - heights(x, wrapped(y + 1, size))
+    sun = (nx * SUN_X + 2 * SUN_Y + nz * SUN_Z) _
+        / sqr(nx * nx + 4 + nz * nz)
+
+    if sun < 0 then sun = 0
+
+    reach = sqr(SUN_X * SUN_X + SUN_Z * SUN_Z)
+    climb = SUN_Y / reach
+
+    for i = 1 to TUSSOCK_H / climb
+        if heights(wrapped(x + int(i * SUN_X / reach + 0.5), size), _
+            wrapped(y + int(i * SUN_Z / reach + 0.5), size)) _
+            > heights(x, y) + i * climb then
+            sun = sun * SHADOW_KEEPS
+            exit for
+        end if
+    next
+
+    grass_light = SHADE + (FULL - SHADE) * sun
+end function
+
+' Adds weight times value noise to n, size texels a side:
+' a lattice of period points a side hashed from seed,
+' eased between points; it wraps, so the noise tiles.
+sub add_noise ( _
+    n() as single, _
+    byval size as integer, _
+    byval period as integer, _
+    byval seed as integer, _
+    byval weight as single _
+)
+    dim grid(period - 1, period - 1) as single
+    dim i as integer
+    dim j as integer
+    dim i1 as integer
+    dim j1 as integer
+    dim x as integer
+    dim y as integer
+    dim cell as integer
+    dim u as single
+    dim v as single
+    dim top as single
+    dim foot as single
+    cell = size \ period
+
+    for j = 0 to period - 1
+        for i = 0 to period - 1
+            grid(i, j) = lattice(i, j, seed)
+        next
+    next
+
+    for y = 0 to size - 1
+        j = y \ cell
+        j1 = (j + 1) mod period
+        v = eased((y mod cell) / cell)
+
+        for x = 0 to size - 1
+            i = x \ cell
+            i1 = (i + 1) mod period
+            u = eased((x mod cell) / cell)
+            top = grid(i, j) + (grid(i1, j) - grid(i, j)) * u
+            foot = grid(i, j1) + (grid(i1, j1) - grid(i, j1)) * u
+            n(x, y) = n(x, y) + weight * (top + (foot - top) * v)
+        next
+    next
+end sub
+
+' A value from 0 up to 1 for (i, j) and seed, by a hash.
+function lattice ( _
+    byval i as integer, _
+    byval j as integer, _
+    byval seed as integer _
+) as single
+    dim hash as long
+    hash = hashed((seed * 4099& + i) and 65535)
+    hash = hashed((hash + j * 257&) and 65535)
+    lattice = hash / 65536
+end function
+
+' A 16-bit hash of n: two steps of a linear congruential
+' generator, each folding its high byte into its low.
+function hashed (byval n as long) as long
+    n = (n * 25173 + 13849) and 65535
+    n = n xor (n \ 256)
+    n = (n * 25173 + 13849) and 65535
+    hashed = n xor (n \ 256)
+end function
+
+' t eased in and out, 0 to 1.
+function eased (byval t as single) as single
+    eased = t * t * (3 - 2 * t)
+end function
+
+' The smaller of a and b.
+function small (byval a as single, byval b as single) as single
+    small = a
+
+    if b < a then small = b
+end function
+
+' The larger of a and b.
+function large (byval a as single, byval b as single) as single
+    large = a
+
+    if b > a then large = b
+end function
+
+' A texel's place along a side of size, a power of two,
+' wrapped onto it.
+function wrapped ( _
+    byval k as integer, _
+    byval size as integer _
+) as integer
+    wrapped = k and (size - 1)
+end function
+
+' Colour c times k, channel by channel, held at 255.
+function scaled (byval c as long, byval k as single) as long
+    dim i as integer
+    dim unit as long
+    dim part as long
+    dim total as long
+    unit = 1
+
+    for i = 0 to 2
+        part = int(((c \ unit) and 255) * k)
+
+        if part > 255 then part = 255
+
+        total = total + part * unit
+        unit = unit * 256
+    next
+
+    scaled = total
+end function
+
+' Texture s from texels, size a side, a row at a time:
+' each run of one colour a line.
+sub draw_texels ( _
+    byval s as long, _
+    texels() as long, _
+    byval size as integer _
+)
+    dim x as integer
+    dim y as integer
+    dim start as integer
+
+    for y = 0 to size - 1
+        start = 0
+
+        for x = 1 to size
+            if x = size then
+                gfx.draw.line s, start, y, x - 1, y, texels(start, y)
+            elseif texels(x, y) <> texels(start, y) then
+                gfx.draw.line s, start, y, x - 1, y, texels(start, y)
+                start = x
+            end if
+        next
     next
 end sub
 
@@ -751,42 +985,210 @@ sub paint_halo (byval s as long)
     next
 end sub
 
-' Water's frame: two waves crossing, in three tones by
-' height; PHASES frames make one cycle and every frame
-' tiles.
-sub paint_water (byval s as long, byval frame as integer)
+' Water's frames in sources() from a wave spectrum, as
+' Tessendorf's ocean: Phillips's spectrum, the waves with
+' the wind, each a whole number of times across the
+' texture, so every frame tiles, and a whole number of
+' cycles a loop, longer waves slower, so PHASES frames
+' loop. Each texel is the shade its slopes look up, out to
+' four spreads each way. PHASES divides WATER_SIDE, a power
+' of two.
+sub paint_water (sources() as long)
+    dim texels(WATER_SIDE - 1, WATER_SIDE - 1) as long
+    dim cosine(WATER_SIDE - 1) as single
+    dim skies(-1 to 100) as long
+    dim shades(-4 * SLOPE_STEPS to 4 * SLOPE_STEPS, _
+        -4 * SLOPE_STEPS to 4 * SLOPE_STEPS) as long
+    dim across(4 * MOST_WAVES * (MOST_WAVES + 1)) as integer
+    dim down(4 * MOST_WAVES * (MOST_WAVES + 1)) as integer
+    dim shift(4 * MOST_WAVES * (MOST_WAVES + 1)) as integer
+    dim cycles(4 * MOST_WAVES * (MOST_WAVES + 1)) as integer
+    dim height(4 * MOST_WAVES * (MOST_WAVES + 1)) as single
+    dim at(4 * MOST_WAVES * (MOST_WAVES + 1)) as integer
+    dim m as integer
+    dim n as integer
+    dim k as integer
+    dim used as integer
     dim x as integer
     dim y as integer
-    dim start as integer
-    dim c as long
-    dim was as long
-    dim a as single
-    ph! = frame * 2 * PI / PHASES
+    dim frame as integer
+    dim waves as single
+    dim along as single
+    dim strongest as single
+    dim spread as single
+    dim su as single
+    dim sv as single
 
-    for y = 0 to SIDE - 1
-        start = 0
+    for k = 0 to WATER_SIDE - 1
+        cosine(k) = cos(k * 2 * PI / WATER_SIDE)
+    next
 
-        for x = 0 to SIDE
-            c = -1
+    skies(-1) = LAND
 
-            if x < SIDE then
-                a = sin((2 * x + y) * PI / 32 + ph!)
-                a = a + sin((3 * y - x) * PI / 32 - ph!)
-                c = WATER_DEEP
+    for k = 0 to 100
+        skies(k) = sky_at(k)
+    next
 
-                if a > 0.6 then c = WATER_MID
-                if a > 1.4 then c = WATER_CREST
-            end if
-
-            if x > 0 and c <> was then
-                gfx.draw.line s, start, y, x - 1, y, was
-                start = x
-            end if
-
-            was = c
+    for m = -4 * SLOPE_STEPS to 4 * SLOPE_STEPS
+        for n = -4 * SLOPE_STEPS to 4 * SLOPE_STEPS
+            shades(m, n) = water_shade(m * SLOPE_SPREAD _
+                / SLOPE_STEPS, n * SLOPE_SPREAD / SLOPE_STEPS, _
+                skies())
         next
     next
+
+    for m = -MOST_WAVES to MOST_WAVES
+        for n = -MOST_WAVES to MOST_WAVES
+            waves = sqr(m * m + n * n)
+
+            if waves > 0 and waves <= MOST_WAVES then
+                along = (m * WIND_U + n * WIND_V) / waves
+            else
+                along = 0
+            end if
+
+            if along > 0 then
+                across(used) = m
+                down(used) = n
+                height(used) = wave_height(m, n, waves, along)
+                shift(used) = int(lattice(m, n, 13) * WATER_SIDE)
+                cycles(used) = large(1, _
+                    int(sqr(waves / PEAK_WAVES) + 0.5))
+                strongest = large(strongest, _
+                    abs(height(used)) * waves)
+                used = used + 1
+            end if
+        next
+    next
+
+    n = used
+    used = 0
+
+    for k = 0 to n - 1
+        waves = sqr(across(k) ^ 2 + down(k) ^ 2)
+
+        if abs(height(k)) * waves >= WEAKEST_WAVE * strongest then
+            across(used) = across(k)
+            down(used) = down(k)
+            height(used) = height(k)
+            shift(used) = shift(k)
+            cycles(used) = cycles(k)
+            spread = spread + (height(k) * waves) ^ 2 / 4
+            used = used + 1
+        end if
+    next
+
+    ' heights to the normal's leans in steps: a normal leans
+    ' against the slope, so the sign
+    spread = -SLOPE_STEPS / sqr(spread)
+
+    for k = 0 to used - 1
+        height(k) = height(k) * spread
+    next
+
+    for frame = 0 to PHASES - 1
+        for y = 0 to WATER_SIDE - 1
+            for k = 0 to used - 1
+                at(k) = down(k) * y + shift(k) _
+                    + cycles(k) * frame * (WATER_SIDE \ PHASES)
+            next
+
+            for x = 0 to WATER_SIDE - 1
+                su = 0
+                sv = 0
+
+                for k = 0 to used - 1
+                    along = height(k) _
+                        * cosine(at(k) and (WATER_SIDE - 1))
+                    su = su + across(k) * along
+                    sv = sv + down(k) * along
+                    at(k) = at(k) + across(k)
+                next
+
+                m = small(large(int(su + 0.5), _
+                    -4 * SLOPE_STEPS), 4 * SLOPE_STEPS)
+                n = small(large(int(sv + 0.5), _
+                    -4 * SLOPE_STEPS), 4 * SLOPE_STEPS)
+                texels(x, y) = shades(m, n)
+            next
+        next
+
+        draw_texels sources(WATER + frame), texels(), WATER_SIDE
+    next
 end sub
+
+' Water's shade where its normal leans su along u and sv
+' along v for 1 up, seen as the camera first sees it, the
+' sun at its back: the sky reflected by Fresnel over the
+' water's own colour; skies() by height on the screen, in
+' hundredths, -1 the land.
+function water_shade ( _
+    byval su as single, _
+    byval sv as single, _
+    skies() as long _
+) as long
+    dim size as single
+    dim view_x as single
+    dim view_y as single
+    dim view_z as single
+    dim facing as single
+    dim fresnel as single
+    dim climb as single
+    size = sqr(SUN_X * SUN_X + SUN_Z * SUN_Z)
+    view_y = LIFT / sqr(LIFT * LIFT + ORBIT * ORBIT)
+    view_x = SUN_X / size * sqr(1 - view_y * view_y)
+    view_z = SUN_Z / size * sqr(1 - view_y * view_y)
+    size = sqr(su * su + 1 + sv * sv)
+    facing = (su * view_x + view_y + sv * view_z) / size
+    fresnel = HEAD_ON + (1 - HEAD_ON) * (1 - facing) ^ 5
+    ' the reflected ray's rise, then its height on the
+    ' screen over the horizon
+    climb = 2 * facing / size - view_y
+    climb = 100 * LENS * climb _
+        / sqr(large(1 - climb * climb, 0.0001))
+    water_shade = mixed(WATER_BODY, _
+        skies(int(small(large(climb, -1), 100))), fresnel)
+end function
+
+' A wave's height from Phillips's spectrum: m and n waves
+' across the texture along u and v, waves in all, along
+' the wind's share; times a normal deviate by hash.
+function wave_height ( _
+    byval m as integer, _
+    byval n as integer, _
+    byval waves as single, _
+    byval along as single _
+) as single
+    dim energy as single
+    dim deviate as single
+    energy = exp(-2 * (PEAK_WAVES / waves) ^ 2) / waves ^ 4 _
+        * along * along
+    deviate = sqr(-2 * log(1 - lattice(m, n, 11))) _
+        * cos(2 * PI * lattice(m, n, 12))
+    wave_height = sqr(energy / 2) * deviate
+end function
+
+' The sky's colour edge hundredths of the screen over the
+' horizon: between the bands it falls between, as a sky
+' shades.
+function sky_at (byval edge as single) as long
+    dim k as integer
+    dim low as single
+    dim high as single
+    high = 100
+
+    for k = BANDS - 1 to 0 step -1
+        low = val(mid$(SKY_EDGES, k * 2 + 1, 2))
+
+        if edge >= low or k = 0 then exit for
+
+        high = low
+    next
+
+    sky_at = mixed(hex_at&(SKY, k), _
+        hex_at&(SKY, small(k + 1, BANDS - 1)), _
+        small((edge - low) / (high - low), 1))
+end function
 
 ' A flame's frame: four layers, each narrower and shorter
 ' than the last, swaying; the rest keyed.
@@ -951,7 +1353,8 @@ sub build_pool (wd as World)
     flat wd, -POOL_X, POOL_N, 2 * POOL_X, lz, BASIN, MOSAIC, FINE
     part_end wd
     part_begin wd, WATER_PART
-    flat wd, -POOL_X, POOL_N, 2 * POOL_X, lz, WATER_Y, WATER, FINE
+    flat wd, -POOL_X, POOL_N, 2 * POOL_X, lz, WATER_Y, WATER, _
+        FINE * WATER_SIDE / SIDE
     part_end wd
 end sub
 
@@ -1374,7 +1777,8 @@ sub face_end (wd as World)
     wd.faces(f).light = light
     wd.faces(f).tint = mixed(COOL, WARM, sun)
 
-    if wd.faces(f).texture = INKED then
+    if wd.faces(f).texture = INKED or wd.faces(f).texture = WATER _
+    then
         wd.faces(f).light = FULL
         wd.faces(f).tint = &HFFFFFF
     end if
