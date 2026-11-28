@@ -52,4 +52,8 @@ assert bench.dll_functions(listing, frozenset({"_drawn"})) == [
     (0x300, "_put (cvg)"),
     (0x400, "_tdfx_setup"),
 ]
+# TEMPLE's "no fires" edit outlived draw_fires's call on one line, so bench --edits stopped on it
+for name, edits in bench.DEMO_EDITS.items():
+    bench.demo_program(name, 1, False, len(edits), sized=True)
+
 print("bench_test ok")

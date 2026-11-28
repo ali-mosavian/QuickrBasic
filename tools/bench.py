@@ -1380,7 +1380,8 @@ DEMO_EDITS = {
     ),
     "TEMPLE": (
         ("no text", "    show_help canvas&, st, moving%, fps\n", ""),
-        ("no fires", "    draw_fires canvas&, world, cam, alive!, q(), r()\n", ""),
+        ("no fires", "    draw_fires canvas&, world.fires(), world.n_fires, _\n"
+         "        world.textures(), cam, alive!, q()\n", ""),
     ),
     # each draw gone, the BASIC working it out kept
     "MEADOW": (
