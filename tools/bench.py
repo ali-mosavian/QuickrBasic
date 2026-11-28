@@ -1755,12 +1755,18 @@ def vm_autorun(image: Path, bat: Path) -> bytes:
     return was
 
 
-def vm_shown(vm: str, com: Path, job: tuple, files: dict[str, bytes]) -> None:
-    """Program com's job on a copy of 86Box's VM vm, in 86Box's own window: the copy in a directory left to it."""
+def vm_shown(vm: str, com: Path, job: tuple, files: dict[str, bytes], sound: bool = False) -> None:
+    """Program com's job on a copy of 86Box's VM vm, in 86Box's own window: the copy in a directory left to it.
+    sound: the copy given a Sound Blaster 16, BLASTER naming it."""
     d = Path(tempfile.mkdtemp(prefix="qb-show-"))
     shutil.copytree(HL86_VMS / vm, d / vm)
     image = d / vm / "c.img"
-    vm_autorun(image, vm_stage(image, d, com, job, files, "ECHO QB-DONE"))
+    cfg = d / vm / "86box.cfg"
+    assert not sound or "[Sound]" not in cfg.read_text(), f"{vm} has a sound card already"
+    if sound:
+        cfg.write_text(cfg.read_text() + "\n[Sound]\nsndcard = sb16\n")
+    sets = ("BLASTER=A220 I5 D1 H5 T6",) if sound else ()
+    vm_autorun(image, vm_stage(image, d, com, job, files, "ECHO QB-DONE", sets))
     subprocess.run(["open", "-n", "-a", SHOW_86BOX, "--args", "-P", d / vm, "-R", HL86_ROMS], check=True)
     print(f"{vm} in 86Box's window, from {d}")
 
@@ -1997,7 +2003,7 @@ def demos_on_card(a: argparse.Namespace, own: dict[str, bytes]) -> int:
     if a.show:
         size = tuple(int(n) for n in a.size.split("x")) if a.size else None
         prog = demo_program((a.demo or ["CUBE"])[0], a.seconds, False, 0, depth=a.depth, sized=True, size=size)
-        vm_shown(vm, b.dos, (prog, "", "", own), card)
+        vm_shown(vm, b.dos, (prog, "", "", own), card, a.sound)
         return 0
     if a.profile:
         with tempfile.TemporaryDirectory() as d:
@@ -2055,7 +2061,7 @@ def cmd_games(a: argparse.Namespace) -> int:
     libs = {"pages": pages, a.card or "voodoo2": pages | drivers_of(b) | (driver_maps(b) if a.dosbox else {})}
     if a.show:
         job, files, _ = jobs[(a.game or ["MEADOW16"])[0]]
-        vm_shown(card_vm(a.card, a.machine), b.dos, job(a.seconds), files | libs[a.card])
+        vm_shown(card_vm(a.card, a.machine), b.dos, job(a.seconds), files | libs[a.card], a.sound)
         return 0
     if a.profile:
         with tempfile.TemporaryDirectory() as d:
@@ -2361,6 +2367,7 @@ def main() -> int:
     p.add_argument("--show", action="store_true", help="--card: --demo's first (CUBE when none) without vsync, "
                    "--seconds long, in 86Box's own window")
     p.add_argument("--size", metavar="WxH", help="--show: the demo at this size, not its own")
+    p.add_argument("--sound", action="store_true", help="--show: with a Sound Blaster 16")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
     p.add_argument("--profile", action="store_true", help="by function a frame, ours with every edit (normal core)")
@@ -2378,6 +2385,7 @@ def main() -> int:
     p.add_argument("--set", action="append", metavar="NAME=VALUE", help="in DOS's environment")
     p.add_argument("--show", action="store_true", help="--card: --game's first (MEADOW16 when none), --seconds "
                    "long, in 86Box's own window")
+    p.add_argument("--sound", action="store_true", help="--show: with a Sound Blaster 16")
     p.add_argument("--profile", action="store_true", help="by function a frame, in pages and by the card")
     p.add_argument("--dosbox", action="store_true", help="--profile: on our DOSBox-X instead, its card a Voodoo 2")
     p.add_argument("--cycles", type=int, default=25000, help="--dosbox: DOSBox's cycles a virtual ms")
