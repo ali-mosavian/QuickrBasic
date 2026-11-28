@@ -871,6 +871,8 @@ enum : uint32_t {
     H3_PORT = 0x600000,
     H3_VID_PROC = 0x5C,
     H3_OVERLAY_END = 0xA0,
+    H3_OVERLAY_DUDX = 0xA4,
+    H3_OVERLAY_DVDY = 0xAC,
     H3_STRIDES = 0xE8,
     H3_LEFT_OVERLAY = 0x250,
     H3_SWAP = 0x128,
@@ -892,6 +894,7 @@ static struct {
     Fifo fifo;
     uint16_t w, h;
     uint8_t bits;
+    AccelMode mode; /* the mode set by h3_bios_vesa */
 } h3;
 
 static uint32_t ACCEL_CALL h3_pci_read(const PciFunction *const card, const uint8_t reg)
@@ -976,6 +979,33 @@ static const AccelHost H3_COMBINED = {
     .fence = h3_fence,
 };
 
+/* The smallest of a BIOS's modes holding w by h set, as host_vesa sets it: each 1280 bytes a row,
+   as the fake FIFO's ring is placed by them. */
+static bool ACCEL_CALL
+h3_bios_vesa(const uint16_t w, const uint16_t h, const uint8_t bits, AccelMode *const out)
+{
+    const AccelMode modes[] = {{320, 240, 1280, H3_BAR1}, {640, 480, 1280, H3_BAR1}};
+
+    (void)bits;
+    for (uint32_t i = 0; i < sizeof modes / sizeof *modes; i++)
+        if (modes[i].w >= w && modes[i].h >= h) {
+            *out = h3.mode = modes[i];
+            return true;
+        }
+
+    return false;
+}
+
+static const AccelHost H3_BIOS = {
+    .size = sizeof(AccelHost),
+    .abi = ACCEL_ABI,
+    .pci_read = h3_pci_read,
+    .pci_write = h3_pci_write,
+    .map = h3_map,
+    .clock_us = h3_clock,
+    .vesa = h3_bios_vesa,
+};
+
 static const AccelDriver *h3_opened_by(const AccelHost *host, AccelCard *card);
 
 /* The driver open at 320x240 on the fake card. */
@@ -1046,6 +1076,28 @@ TEST(tdfx_h3_shows_an_overlay_over_the_mode)
     h3_played();
     CHECK(loaded(h3.regs + H3_3D + H3_LEFT_OVERLAY) == 0);
     h3_closed(d);
+}
+
+/* A mode of fewer than 400 rows the BIOS shows doubled, and 86Box draws the overlay in the
+   pixels shown: CHARLIE's 320x200 on the Voodoo 3 showed the overlay over the top left quarter,
+   buffer 0 doubled around it. The overlay covers what is shown, the whole screen across it. */
+TEST(tdfx_h3_shows_a_small_screen_over_all_the_mode_shows)
+{
+    AccelCard card;
+    const AccelDriver *const d = h3_opened_by(&H3_BIOS, &card);
+    const uint32_t scaled = 3u << 14, step = 1u << 20;
+    const uint32_t doubled = h3.mode.h < 400 ? 2 : 1;
+    const uint32_t end = loaded(h3.regs + H3_OVERLAY_END);
+    const uint32_t wide = (end & 0xFFF) + 1, high = (end >> 12 & 0xFFF) + 1;
+    const bool scaling = (loaded(h3.regs + H3_VID_PROC) & scaled) == scaled;
+    const uint32_t dudx = scaling ? loaded(h3.regs + H3_OVERLAY_DUDX) : step;
+    const uint32_t dvdy = scaling ? loaded(h3.regs + H3_OVERLAY_DVDY) : step;
+
+    CHECK(d);
+    CHECK(wide == h3.mode.w * doubled && high == h3.mode.h * doubled);
+    CHECK(wide * dudx / step == 320 && high * dvdy / step == 240);
+    if (d)
+        h3_closed(d);
 }
 
 /* The overlay shows the buffer drawn, swapped at the retrace with vsync; the screen is drawn in

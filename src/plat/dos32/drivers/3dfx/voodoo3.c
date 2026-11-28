@@ -6,10 +6,12 @@
  * each buffer the mode's rows of its stride and more for targets, linear. Registers and texels go
  * through the command FIFO (cmdfifo.h), as Glide sends them; texels to TMU0's texture port, linear
  * from texBaseAddr, the texture cache flushed after as Glide does. A 565 overlay over the whole
- * mode shows a colour buffer through a CLUT that widens it as gfx does: swapbufferCMD, in the
- * FIFO, moves it to leftOverlayBuf's, at the retrace with vsync; a show waits until the card has
- * read the last. colBufferAddr sets the buffer drawn in. Pixels are read through BAR1, its tiling
- * past memory; a frame is carried by the 2D engine.
+ * mode shows a colour buffer through a CLUT that widens it as gfx does; a mode of fewer than 400
+ * rows, which the BIOS shows doubled, is set twice its size, the overlay scaling the buffer up to
+ * it, as 86Box draws the overlay in the pixels shown. swapbufferCMD, in the FIFO, moves it to
+ * leftOverlayBuf's, at the retrace with vsync; a show waits until the card has read the last.
+ * colBufferAddr sets the buffer drawn in. Pixels are read through BAR1, its tiling past memory; a
+ * frame is carried by the 2D engine.
  */
 #include "plat/dos32/drivers/3dfx/cmdfifo.h"
 #include "plat/dos32/drivers/3dfx/regs.h"
@@ -57,6 +59,7 @@ enum : uint32_t {
     END_Y = 12,        /* vidOverlayEndScreenCoord's y */
     SOURCE_WIDTH = 19, /* vidOverlayDudxOffsetSrcWidth's bytes a row */
     ONE = 1u << 20,    /* a step of a pixel, unscaled */
+    UNDOUBLED = 400,   /* the rows of the least mode the BIOS shows as it is */
     CLUT = 256,
     /* dramInit's straps: SDRAM, 16 MB; else SGRAM, 8 chips not 4, of 16 Mbit not 8 */
     SDRAM = 1u << 30,
@@ -312,8 +315,23 @@ static uint32_t widened(const uint32_t i)
     return five << 16 | six << 8 | five;
 }
 
-/* The overlay over the whole mode m, unscaled, showing buffer 0. */
-static void overlaid(Tdfx *const c, const AccelMode *const m)
+/* The mode for w by h set, to *m, and the overlay's scale of it: under UNDOUBLED rows, one twice
+   the size if any, *m its half; 0, none holds w by h. */
+static uint32_t moded(const AccelHost *const host, const uint16_t w, const uint16_t h, AccelMode *m)
+{
+    AccelMode twice;
+
+    if (!host->vesa(w, h, BITS, m))
+        return 0;
+    if (m->h >= UNDOUBLED || !host->vesa((uint16_t)(2 * w), (uint16_t)(2 * h), BITS, &twice))
+        return 1;
+
+    *m = (AccelMode){(uint16_t)(twice.w / 2), (uint16_t)(twice.h / 2), twice.pitch, twice.base};
+    return 2;
+}
+
+/* The overlay over the whole mode m scaled by scale, showing buffer 0. */
+static void overlaid(Tdfx *const c, const AccelMode *const m, const uint32_t scale)
 {
     for (uint32_t i = 0; i < CLUT; i++) {
         io_put(DAC_ADDR, i);
@@ -322,10 +340,10 @@ static void overlaid(Tdfx *const c, const AccelMode *const m)
     }
 
     io_put(OVERLAY_START, 0);
-    io_put(OVERLAY_END, (m->h - 1u) << END_Y | (m->w - 1u));
-    io_put(OVERLAY_DUDX, ONE);
+    io_put(OVERLAY_END, (m->h * scale - 1u) << END_Y | (m->w * scale - 1u));
+    io_put(OVERLAY_DUDX, ONE / scale);
     io_put(OVERLAY_WIDTH, (uint32_t)m->w * PIXEL << SOURCE_WIDTH);
-    io_put(OVERLAY_DVDY, ONE);
+    io_put(OVERLAY_DVDY, ONE / scale);
     io_put(OVERLAY_DVDY_OFFSET, 0);
     io_put(STRIDES, (h3.strides & ~OVERLAY_STRIDE_BITS) | m->pitch << OVERLAY_STRIDE);
     swapped(c, 0, false);
@@ -333,7 +351,7 @@ static void overlaid(Tdfx *const c, const AccelMode *const m)
         VID_PROC,
         (h3.video & ~(OVERLAY_BYPASS | OVERLAY_UPPER | OVERLAY_SCALED | FILTER | OVERLAY_FORMAT |
                       OVERLAY_TILED)) |
-            OVERLAY | OVERLAY_565
+            OVERLAY | OVERLAY_565 | (scale > 1 ? OVERLAY_SCALED : 0)
     );
 }
 
@@ -387,8 +405,9 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
     volatile uint8_t *const frame = host->map(frame_at, bytes);
 
     AccelMode m;
+    const uint32_t scale = frame ? moded(host, w, h, &m) : 0;
 
-    if (!frame || !host->vesa(w, h, BITS, &m) || !laid_out(c, &m, bytes))
+    if (!scale || !laid_out(c, &m, bytes))
         return false;
 
     c->regs = regs + THREE_D;
@@ -407,7 +426,7 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
     h3.video = io_get(VID_PROC);
     h3.strides = io_get(STRIDES);
     io_put(LFB_MEMORY, h3.tiles | TILE_BASE);
-    overlaid(c, &m);
+    overlaid(c, &m, scale);
     tdfx_put(c, COLOUR_STRIDE, m.pitch);
     tdfx_put(c, AUX_STRIDE, m.pitch);
     tdfx_put(c, AUX_AT, h3.at[DEPTH]);
