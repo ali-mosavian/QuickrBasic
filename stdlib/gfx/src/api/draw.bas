@@ -32,6 +32,9 @@ const SOLID = 64
 ' src's four texels round each pixel mixed, where they
 ' fall between pixels.
 const SMOOTH = 128
+' src drawn smaller than its texels read from its mipmap:
+' levels each half the last, the one nearest its scale.
+const MIPMAP = 512
 ' poly's texels in perspective, by its points' z.
 const PERSPECTIVE = 2048
 ' Drawn only where nearer than dst's depth; dst's depth
@@ -347,7 +350,8 @@ declare sub arc cdecl ( _
 '         With no src, the colour.
 '       flags:
 '         FILL (with no src), OPAQUE, BLEND, ADD, SOLID,
-'         SMOOTH, PERSPECTIVE, DEPTH_TEST, DEPTH_WRITE.
+'         SMOOTH, MIPMAP, PERSPECTIVE, DEPTH_TEST,
+'         DEPTH_WRITE.
 '
 '     Raises:
 '       Illegal function call: n out of range, or a z

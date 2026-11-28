@@ -1,6 +1,7 @@
 /* Software as a backend (backend.h): the style made an ink (ink.h), and soft.h's drawing. Its own
-   state holds the call readied and each root's depth. */
+   state holds the call readied, each root's depth and each root's levels. */
 #include "core/gfx.h"
+#include "core/levels.h"
 #include "core/mem.h"
 #include "backend/soft/soft.h"
 
@@ -10,12 +11,23 @@ typedef struct {
     uint16_t *p;
 } SoftDepth;
 
-/* Software's own (Gx.own): the call readied, the roots' depths by their slots, and the tables
-   its shapes make once. */
+/* A root's levels for MIPMAP: made from its rectangle at, at its version, keyed or not; an 8-bit
+   root's at row 0's changes. */
+typedef struct {
+    uint32_t handle, version, palette;
+    Rect at;
+    bool keyed;
+    Levels levels;
+} SoftLevels;
+
+/* Software's own (Gx.own): the call readied, the roots' depths and levels by their slots, and
+   the tables its shapes make once. */
 typedef struct {
     SoftTarget call;
     SoftDepth *depths;
     uint32_t ndepths;
+    SoftLevels *levels;
+    uint32_t nlevels;
     FillTints tints;
     FillMixes mixes;
     FillColours colours;
@@ -42,6 +54,58 @@ static void drop_depth(Soft *const o, const uint32_t h)
         mem_free(o->depths[slot].p);
         o->depths[slot] = (SoftDepth){};
     }
+}
+
+/* h's levels dropped, h a root. */
+static void drop_levels(Soft *const o, const uint32_t h)
+{
+    const uint32_t slot = hdl_slot(h);
+
+    if (slot < o->nlevels && o->levels[slot].handle == h) {
+        levels_done(&o->levels[slot].levels);
+        o->levels[slot] = (SoftLevels){};
+    }
+}
+
+/* p's levels, made again when its texels, rectangle, keying or, at 8 bits, row 0 changed: null,
+   raised. */
+static const Levels *levels_of_source(
+    Gx *const g,
+    Soft *const o,
+    const Source *const p,
+    const bool keyed
+)
+{
+    const uint32_t slot = hdl_slot(p->texture);
+    const uint32_t palette = p->root.format == PX_8 ? g->palette.changed[0] : 0;
+
+    if (!mem_grow((void **)&o->levels, &o->nlevels, slot + 1, sizeof *o->levels))
+        return gx_fail(ERR_MEMORY), nullptr;
+
+    SoftLevels *const l = &o->levels[slot];
+
+    if (l->handle == p->texture && l->version == p->version && l->palette == palette &&
+        l->keyed == keyed && l->at.x == p->at.x && l->at.y == p->at.y && l->at.w == p->at.w &&
+        l->at.h == p->at.h)
+        return &l->levels;
+
+    const Pixels px = source_pixels(p);
+
+    levels_done(&l->levels);
+    *l = (SoftLevels){
+        .handle = p->texture,
+        .version = p->version,
+        .palette = palette,
+        .at = p->at,
+        .keyed = keyed,
+    };
+
+    if (!levels_make(&l->levels, &px, keyed, g->palette.rows[0])) {
+        *l = (SoftLevels){};
+        return gx_fail(ERR_MEMORY), nullptr;
+    }
+
+    return &l->levels;
 }
 
 /* p's depth, its root's made all far on first ask: p null, raised. */
@@ -99,7 +163,11 @@ static void stop(Gx *const g)
     for (uint32_t i = 0; i < o->ndepths; i++)
         mem_free(o->depths[i].p);
 
+    for (uint32_t i = 0; i < o->nlevels; i++)
+        levels_done(&o->levels[i].levels);
+
     mem_free(o->depths);
+    mem_free(o->levels);
     mem_free(o);
     g->own = nullptr;
 }
@@ -123,8 +191,10 @@ static void wrote(Gx *const g, const uint32_t h, const int32_t top, const int32_
 
 static void forget(Gx *const g, const uint32_t h)
 {
-    if (g->own)
+    if (g->own) {
         drop_depth(g->own, h);
+        drop_levels(g->own, h);
+    }
 }
 
 static bool begin(Gx *const g, const Command *const c, const Source *const into, const Rect clip)
@@ -216,8 +286,23 @@ static void poly(
 )
 {
     const Pixels px = p ? source_pixels(p) : (Pixels){};
+    const Levels *const levels = p && flags & GFX_DRAW_MIPMAP
+                                     ? levels_of_source(g, g->own, p, !(flags & GFX_DRAW_OPAQUE))
+                                     : nullptr;
 
-    soft_poly(call(g), p ? &px : nullptr, c, n, colour, flags & ~POLY_WRAP, flags & POLY_WRAP);
+    if (p && flags & GFX_DRAW_MIPMAP && !levels)
+        return;
+
+    soft_poly(
+        call(g),
+        p ? &px : nullptr,
+        levels,
+        c,
+        n,
+        colour,
+        flags & ~POLY_WRAP,
+        flags & POLY_WRAP
+    );
 }
 
 static void circle(Gx *const g, const Vec c, const float r, const uint32_t colour, const bool fill)

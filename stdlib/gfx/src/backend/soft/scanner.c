@@ -16,6 +16,8 @@ typedef struct {
     double denom;
     int32_t dudx, dvdx;
     float fdudx, fdvdx, fdzdx;
+    /* perspective: u/z's, v/z's and 1/z's a row down */
+    float fdudy, fdvdy, fdzdy;
     int32_t dzdx; /* depth's step a pixel, 16.16: qgl$zdzdx */
     int32_t bias; /* gfx's nudge up, 16.16: taken off a prestep, an edge is met at its row */
 } Grad;
@@ -255,6 +257,10 @@ static bool grad(
     if (persp) {
         if ((fu < 0 ? -fu : fu) >= most || (fv < 0 ? -fv : fv) >= most)
             return false;
+
+        g->fdudy = real4(-nom(a->u, b->u, c->u, a->x, b->x, c->x) / denom);
+        g->fdvdy = real4(-nom(a->v, b->v, c->v, a->x, b->x, c->x) / denom);
+        g->fdzdy = real4(-nom(a->z, b->z, c->z, a->x, b->x, c->x) / denom);
     } else {
         if ((gu16 < 0 ? -gu16 : gu16) >= most || (gv16 < 0 ? -gv16 : gv16) >= most)
             return false;
@@ -1173,6 +1179,42 @@ bool scan_turned(
     }
 }
 
+/* Of n levels, the one read where u/z, v/z and 1/z are pu, pv and pz: u's and v's steps a pixel
+   across and down from g's. */
+static uint32_t level_at(
+    const Grad *const g,
+    const uint32_t n,
+    const double pu,
+    const double pv,
+    const double pz
+)
+{
+    const double u = pu / pz, v = pv / pz;
+
+    return scan_level(
+        (float)((g->fdudx - u * g->fdzdx) / pz),
+        (float)((g->fdvdx - v * g->fdzdx) / pz),
+        (float)((g->fdudy - u * g->fdzdy) / pz),
+        (float)((g->fdvdy - v * g->fdzdy) / pz),
+        n
+    );
+}
+
+/* Each level's rows' steps a run from g's: a level's u is su times level 0's, its texel centres
+   moved to match, so its u/z is su * u/z + (su - 1) / 2 * 1/z, v likewise. */
+static void levels_stepped(ScanLevels *const lv, const Grad *const g)
+{
+    for (uint32_t k = 0; k < lv->n; k++) {
+        Rows *const r = &lv->rows[k];
+        const double su = lv->su[k], sv = lv->sv[k];
+
+        r->dz = g->dzdx;
+        r->dpun = real4((su * g->fdudx + (su - 1) / 2 * g->fdzdx) * SCAN_SUBDIVP);
+        r->dpvn = real4((sv * g->fdvdx + (sv - 1) / 2 * g->fdzdx) * SCAN_SUBDIVP);
+        r->dpzn = real4((double)g->fdzdx * SCAN_SUBDIVP);
+    }
+}
+
 /* qgl$drawP: scan_affine's walk, the left edge carrying u/z, v/z and 1/z; each row's run filled
    by fill, which divides. */
 void scan_persp(
@@ -1180,7 +1222,8 @@ void scan_persp(
     const uint32_t n,
     const Rect clip,
     Rows *const r,
-    RowPersp *const fill
+    RowPersp *const fill,
+    ScanLevels *const levels
 )
 {
     const double r65536 = 0.0000152587890625;
@@ -1193,10 +1236,14 @@ void scan_persp(
     const int32_t cnt = ring.cnt;
     const Grad *const g = &ring.g;
 
-    r->dz = g->dzdx;
-    r->dpun = real4((double)g->fdudx * SCAN_SUBDIVP);
-    r->dpvn = real4((double)g->fdvdx * SCAN_SUBDIVP);
-    r->dpzn = real4((double)g->fdzdx * SCAN_SUBDIVP);
+    if (levels)
+        levels_stepped(levels, g);
+    else {
+        r->dz = g->dzdx;
+        r->dpun = real4((double)g->fdudx * SCAN_SUBDIVP);
+        r->dpvn = real4((double)g->fdvdx * SCAN_SUBDIVP);
+        r->dpzn = real4((double)g->fdzdx * SCAN_SUBDIVP);
+    }
 
     Edge l = {.s = 0, .e = cnt - 1}, rt = {.s = 0, .e = 1};
 
@@ -1239,17 +1286,37 @@ void scan_persp(
 
             if (x1 > x0) {
                 const double diff = (double)into * r65536;
+                const double pu = (double)c.pu + (double)g->fdudx * diff;
+                const double pv = (double)c.pv + (double)g->fdvdx * diff;
+                const double pz = (double)c.z + (double)g->fdzdx * diff;
+                const int32_t zd = scan_fistp_low((double)c.z * DEPTH_NEAR * 65536.0);
 
-                fill(
-                    r,
-                    y,
-                    x0,
-                    x1,
-                    (double)c.pu + (double)g->fdudx * diff,
-                    (double)c.pv + (double)g->fdvdx * diff,
-                    (double)c.z + (double)g->fdzdx * diff,
-                    scan_fistp_low((double)c.z * DEPTH_NEAR * 65536.0)
-                );
+                if (levels) {
+                    /* the sharper end's level, never a near end blurred */
+                    const double last = x1 - x0 - 1;
+                    const uint32_t a = level_at(g, levels->n, pu, pv, pz);
+                    const uint32_t b = level_at(
+                        g,
+                        levels->n,
+                        pu + g->fdudx * last,
+                        pv + g->fdvdx * last,
+                        pz + g->fdzdx * last
+                    );
+                    const uint32_t k = a < b ? a : b;
+                    const double su = levels->su[k], sv = levels->sv[k];
+
+                    fill(
+                        &levels->rows[k],
+                        y,
+                        x0,
+                        x1,
+                        su * pu + (su - 1) / 2 * pz,
+                        sv * pv + (sv - 1) / 2 * pz,
+                        pz,
+                        zd
+                    );
+                } else
+                    fill(r, y, x0, x1, pu, pv, pz, zd);
             }
 
             l.x = add32(l.x, l.dx);

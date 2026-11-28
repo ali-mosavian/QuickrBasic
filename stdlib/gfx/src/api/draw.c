@@ -13,7 +13,7 @@ enum {
     POLY_MOST = 32, /* the scanner's SCAN_MAXV, less what a clip adds */
     DEPTHS = GFX_DRAW_DEPTH_TEST | GFX_DRAW_DEPTH_WRITE,
     POLY_FLAGS = SHAPE_FLAGS | DEPTHS | GFX_DRAW_PERSPECTIVE | GFX_DRAW_OPAQUE | GFX_DRAW_SOLID |
-                 GFX_DRAW_SMOOTH,
+                 GFX_DRAW_SMOOTH | GFX_DRAW_MIPMAP,
 };
 static_assert(!((SPRITE_FLAGS | POLY_FLAGS) & POLY_WRAP));
 
