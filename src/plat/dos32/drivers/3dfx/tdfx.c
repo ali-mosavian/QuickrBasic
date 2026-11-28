@@ -158,16 +158,19 @@ static void held_put(Tdfx *const c, const TdfxHeld which, const uint32_t v)
     c->known |= 1u << which;
 }
 
-static void placed(Tdfx *const c, const uint32_t slot)
+/* Texture slot placed in TMU0's registers, its levels read when levels. */
+static void placed(Tdfx *const c, const uint32_t slot, const bool levels)
 {
     const TdfxTexture *const t = &c->textures[slot];
+    const uint32_t lod = levels ? t->lods : t->lod;
 
-    if (c->placed == slot)
+    if (c->placed == slot && c->placed_lod == lod)
         return;
 
-    tdfx_put(c, SST_TMU0 + SST_TLOD, t->lod);
+    tdfx_put(c, SST_TMU0 + SST_TLOD, lod);
     tdfx_put(c, SST_TMU0 + SST_TEX_BASE, t->base);
     c->placed = slot;
+    c->placed_lod = lod;
     c->repaletted = false; /* placed, its texels are looked up afresh */
 }
 
@@ -221,7 +224,7 @@ static void sent(Tdfx *const c)
 
     if (texel) {
         held_put(c, TDFX_HELD_TEXTURE_MODE, w.texture_mode);
-        placed(c, s->texture);
+        placed(c, s->texture, s->flags & ACCEL_MIPMAP);
     }
 }
 
@@ -368,13 +371,23 @@ static void ACCEL_CALL closed(void)
         c->host->free(c->under);
 }
 
-/* Texture slot made w by h, a byte a texel when indexed: false, no room. */
-static bool made(const uint32_t slot, const uint16_t w, const uint16_t h, const bool indexed)
+/* Texture slot made w by h with levels, a byte a texel when indexed: false, no room. */
+static bool made(
+    const uint32_t slot,
+    const uint16_t w,
+    const uint16_t h,
+    const uint8_t levels,
+    const bool indexed
+)
 {
     Tdfx *const c = &card;
     const uint32_t texel = indexed ? 1 : TEXEL;
-    const uint32_t at =
-        slot < ACCEL_TEXTURES ? tdfx_take(&c->memory, (uint32_t)w * h * texel, ALIGN) : TDFX_NONE;
+    /* a level past the first no smaller than the card's least */
+    const bool fits = levels == 1 || (levels > 1 && (w >> (levels - 1)) >= 1u << LEAST &&
+                                      (h >> (levels - 1)) >= 1u << LEAST);
+    const uint32_t at = slot < ACCEL_TEXTURES && fits
+                            ? tdfx_take(&c->memory, tdfx_chain(w, h, levels, texel), ALIGN)
+                            : TDFX_NONE;
 
     if (at == TDFX_NONE)
         return false;
@@ -384,37 +397,51 @@ static bool made(const uint32_t slot, const uint16_t w, const uint16_t h, const 
         .w = w,
         .h = h,
         .indexed = indexed,
+        .levels = levels,
         .level = tdfx_level(w, h),
-        .lod = tdfx_lod(w, h),
+        .lod = tdfx_lod(w, h, 1),
         .base = c->chip->based(c, at - tdfx_skipped(w, h, texel)),
+        .lods = tdfx_lod(w, h, levels),
     };
 
     c->placed = c->placed == slot ? ACCEL_TEXTURES : c->placed;
     return true;
 }
 
-static bool ACCEL_CALL textured(const uint32_t slot, const uint16_t w, const uint16_t h)
+static bool ACCEL_CALL
+textured(const uint32_t slot, const uint16_t w, const uint16_t h, const uint8_t levels)
 {
-    return made(slot, w, h, false);
+    return made(slot, w, h, levels, false);
 }
 
-static bool ACCEL_CALL indexed(const uint32_t slot, const uint16_t w, const uint16_t h)
+static bool ACCEL_CALL
+indexed(const uint32_t slot, const uint16_t w, const uint16_t h, const uint8_t levels)
 {
-    return made(slot, w, h, true);
+    return made(slot, w, h, levels, true);
 }
 
-static void ACCEL_CALL
-uploaded(const uint32_t slot, const AccelRect r, const uint16_t *const texels, const uint32_t pitch)
+static void ACCEL_CALL uploaded(
+    const uint32_t slot,
+    const uint8_t level,
+    const AccelRect r,
+    const uint16_t *const texels,
+    const uint32_t pitch
+)
 {
     Tdfx *const c = &card;
+    const TdfxTexture *const t = &c->textures[slot];
 
-    /* the texels are placed, and their format taken, as TMU0's registers are as they come */
+    /* the texels are placed, and their format taken, as TMU0's registers are as they come; its
+       levels read, as the SST-1 takes a level's texels only within them (Glide's gtexdl.c) */
     const AccelState placing = {.texture = slot, .source = ACCEL_TEXEL};
-    const TdfxWords w = tdfx_words(&placing, 0, c->textures[slot].indexed);
+    const TdfxWords w = tdfx_words(&placing, 0, t->indexed);
+
+    if (level >= t->levels)
+        return;
 
     held_put(c, TDFX_HELD_TEXTURE_MODE, w.texture_mode);
-    placed(c, slot);
-    c->chip->upload(c, &c->textures[slot], r, texels, pitch);
+    placed(c, slot, true);
+    c->chip->upload(c, t, level, r, texels, pitch);
 
     /* the draws' texture as it was */
     if (c->state.source != ACCEL_COLOUR)

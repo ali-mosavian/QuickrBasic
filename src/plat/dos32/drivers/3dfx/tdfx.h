@@ -45,18 +45,20 @@ typedef struct {
 } TdfxWay;
 
 typedef struct {
-    uint32_t at; /* its texels' first byte in TMU0's memory */
+    uint32_t at; /* its texels' first byte in TMU0's memory, its levels' after */
     uint16_t w, h;
     bool indexed;              /* a byte a texel, P_8: else two, ARGB1555 */
+    uint8_t levels;            /* each half the last */
     uint32_t level, lod, base; /* setup.h's; tLOD's and texBaseAddr's words */
+    uint32_t lods;             /* tLOD's reading its levels */
 } TdfxTexture;
 
 /* A chip's (SST-1's and CVG's, sst.c; H3's, voodoo3.c):
    - busy: status' bits while it works;
    - put: the registers p picks from reg written, v's word at each one's place;
    - based: texBaseAddr's word for texture memory's byte at;
-   - upload: texels r of texture t from texels, pitch a row, TMU0 placing t and taking its
-     format;
+   - upload: texels r of texture t's level from texels, pitch a row, TMU0 placing t, its levels
+     read, and taking its format;
    - drawn_in: the draws aimed at colour buffer `buffer`, fbzMode's draw buffer for it;
    - pixels: where buffer's row 0 is read, lfb_row bytes a row, once the card is idle;
    - show: buffer shown ^ 1 shown, at the retrace with vsync;
@@ -76,6 +78,7 @@ typedef struct {
     void (*upload)(
         Tdfx *c,
         const TdfxTexture *t,
+        uint32_t level,
         AccelRect r,
         const uint16_t *texels,
         uint32_t pitch
@@ -165,6 +168,7 @@ struct Tdfx {
     const TdfxWay *way;
     uint32_t colour0;
     uint32_t placed;                 /* the texture TMU0's registers place: ACCEL_TEXTURES, none */
+    uint32_t placed_lod;             /* and the tLOD it was given */
     uint32_t held[TDFX_HELD], known; /* the held registers' words, those known a bit each */
     /* TMU0's palette's colours as set, index 0's sent as the chroma key; the key; it sent; the
        palette set since a texture was placed or chip's paletted ran */

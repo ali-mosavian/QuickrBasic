@@ -371,10 +371,19 @@ TEST(tdfx_words_test_depth_greater_nearer)
    by 8. */
 TEST(tdfx_textures_are_placed_by_level_and_aspect)
 {
-    CHECK(tdfx_lod(64, 64) == 0x208 && tdfx_skipped(64, 64, 2) == 131072 + 32768);
+    CHECK(tdfx_lod(64, 64, 1) == 0x208 && tdfx_skipped(64, 64, 2) == 131072 + 32768);
     CHECK(tdfx_level(64, 64) == 2 && tdfx_level(256, 32) == 0);
-    CHECK(tdfx_lod(256, 32) == (1u << 20 | 3u << 21) && tdfx_skipped(256, 32, 2) == 0);
-    CHECK(tdfx_lod(8, 64) == (0x104 * 2 | 3u << 21));
+    CHECK(tdfx_lod(256, 32, 1) == (1u << 20 | 3u << 21) && tdfx_skipped(256, 32, 2) == 0);
+    CHECK(tdfx_lod(8, 64, 1) == (0x104 * 2 | 3u << 21));
+}
+
+/* 64 by 64 with three levels reads LODs 2 to 4 (lodmax 16), biased half a level (2 in 4.2), as
+   the card drops the LOD's fraction where gfx rounds it; its levels 5376 texels. */
+TEST(tdfx_textures_read_their_levels)
+{
+    CHECK(tdfx_lod(64, 64, 3) == (8 | 16 << 6 | 2 << 12));
+    CHECK(tdfx_lod(256, 32, 2) == (4 << 6 | 2 << 12 | 1u << 20 | 3u << 21));
+    CHECK(tdfx_chain(64, 64, 3, 2) == (4096 + 1024 + 256) * 2);
 }
 
 /* Ranges given out first fit, aligned; one given back is the first room again. */
@@ -597,8 +606,8 @@ TEST(tdfx_driver_places_a_texture_past_the_levels_above_it)
         texels[i] = (uint16_t)i;
 
     CHECK(d && d->open(&(PciFunction){}, 320, 240, &card) && card.memory == 2 << 20);
-    CHECK(d->texture(1, 64, 64));
-    d->upload(1, (AccelRect){0, 5, 64, 2}, texels, 64);
+    CHECK(d->texture(1, 64, 64, 1));
+    d->upload(1, 0, (AccelRect){0, 5, 64, 2}, texels, 64);
     CHECK(word_at(SST_TMU0 + SST_TEX_BASE) == (((0u - 163840) >> 3) & 0x7FFFF));
     CHECK(word_at(SST_TMU0 + SST_TLOD) == 0x208);
     CHECK(word_at(SST_TEXELS + (2 << 17) + (5 << 9) + (2 << 1)) == (3u << 16 | 2));
@@ -621,8 +630,8 @@ TEST(tdfx_driver_sends_indexed_texels_four_a_word)
         texels[i] = (uint16_t)(0x8000 | i);
 
     CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
-    CHECK(d->indexed(1, 64, 64));
-    d->upload(1, (AccelRect){0, 5, 64, 1}, texels, 64);
+    CHECK(d->indexed(1, 64, 64, 1));
+    d->upload(1, 0, (AccelRect){0, 5, 64, 1}, texels, 64);
     CHECK(word_at(SST_TMU0 + SST_TEX_BASE) == (((0u - 81920) >> 3) & 0x7FFFF));
     CHECK((word_at(SST_TMU0 + SST_TEXTURE_MODE) & (0xFu << 8 | 1u << 31)) == (5u << 8 | 1u << 31));
     CHECK(word_at(SST_TEXELS + (2 << 17) + (5 << 9)) == 0x03020100);
@@ -637,6 +646,41 @@ static const AccelVertex TRIANGLE[3] = {
     {64, 0, 0.5f, 1, 0, 0, 0xFF204060},
     {0, 64, 0.25f, 1, 0, 0, 0xFF608020},
 };
+
+/* A texture's levels follow it in memory: the next texture past them all. Level 1's rows go to
+   LOD 3's window, its levels read meanwhile (the SST-1 takes a level's only within them). A draw
+   reads them with MIPMAP, its first alone without. Levels past the card's least are no room. */
+TEST(tdfx_driver_places_a_textures_levels_after_it)
+{
+    static const TdfxFamily fake = {"fake", &sst_chip, false, fake_open, fake_close};
+    static uint16_t texels[32];
+
+    const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &fake);
+    const AccelState mipmap = {.texture = 1, .source = ACCEL_TEXEL, .flags = ACCEL_MIPMAP};
+    const AccelState first = {.texture = 1, .source = ACCEL_TEXEL};
+    const uint32_t lods = 8 | 16 << 6 | 2 << 12;
+
+    AccelCard card;
+
+    for (uint32_t i = 0; i < 32; i++)
+        texels[i] = (uint16_t)i;
+
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
+    CHECK(d->texture(1, 64, 64, 3) && d->texture(2, 64, 64, 1));
+    CHECK(!d->texture(3, 8, 8, 3) && d->texture(3, 8, 8, 2));
+    d->upload(1, 1, (AccelRect){0, 5, 32, 1}, texels, 32);
+    CHECK(word_at(SST_TMU0 + SST_TLOD) == lods);
+    CHECK(word_at(SST_TEXELS + (3 << 17) + (5 << 9) + (2 << 1)) == (3u << 16 | 2));
+    d->upload(2, 0, (AccelRect){0, 0, 2, 1}, texels, 2);
+    CHECK(word_at(SST_TMU0 + SST_TEX_BASE) == (((10752u - 163840) >> 3) & 0x7FFFF));
+    d->state(&mipmap);
+    d->fans(TRIANGLE, (const uint8_t[]){3}, 1);
+    CHECK(word_at(SST_TMU0 + SST_TLOD) == lods);
+    d->state(&first);
+    d->fans(TRIANGLE, (const uint8_t[]){3}, 1);
+    CHECK(word_at(SST_TMU0 + SST_TLOD) == 0x208);
+    d->close();
+}
 
 static uint32_t loaded(const uint8_t *const at)
 {
@@ -1158,12 +1202,31 @@ TEST(tdfx_h3_sends_texels_through_the_port_from_the_base)
     for (uint32_t i = 0; i < 64 * 2; i++)
         texels[i] = (uint16_t)i;
 
-    CHECK(d && d->texture(1, 64, 64));
-    d->upload(1, (AccelRect){0, 5, 64, 2}, texels, 64);
+    CHECK(d && d->texture(1, 64, 64, 1));
+    d->upload(1, 0, (AccelRect){0, 5, 64, 2}, texels, 64);
     h3_played();
     CHECK(loaded(h3.regs + H3_3D + SST_TMU0 + SST_TEX_BASE) == 3 * H3_BUFFER + H3_FIFO - skipped);
     CHECK(loaded(h3.regs + H3_PORT + skipped + (5 * 64 + 2) * 2) == (3u << 16 | 2));
     CHECK(loaded(h3.regs + H3_PORT + skipped + (6 * 64 + 62) * 2) == (127u << 16 | 126));
+    h3_closed(d);
+}
+
+/* Level 1 of a 64 by 64 texture goes through the port past LODs 0 to 2, 32 texels a row. */
+TEST(tdfx_h3_sends_a_level_through_the_port_past_the_ones_above_it)
+{
+    static uint16_t texels[32];
+
+    AccelCard card;
+    const AccelDriver *const d = h3_opened(&card);
+    const uint32_t skipped = 131072 + 32768 + 8192;
+
+    for (uint32_t i = 0; i < 32; i++)
+        texels[i] = (uint16_t)i;
+
+    CHECK(d && d->texture(1, 64, 64, 3));
+    d->upload(1, 1, (AccelRect){0, 5, 32, 1}, texels, 32);
+    h3_played();
+    CHECK(loaded(h3.regs + H3_PORT + skipped + (5 * 32 + 2) * 2) == (3u << 16 | 2));
     h3_closed(d);
 }
 
@@ -1295,8 +1358,8 @@ TEST(tdfx_h3_flushes_its_texture_cache_before_a_draw_after_the_palette)
     const AccelDriver *const d = h3_opened(&card);
     bool back;
 
-    CHECK(d && d->indexed(1, 64, 64));
-    d->upload(1, (AccelRect){0, 0, 64, 1}, texels, 64);
+    CHECK(d && d->indexed(1, 64, 64, 1));
+    d->upload(1, 0, (AccelRect){0, 0, 64, 1}, texels, 64);
     d->state(&SOLID);
     h3_played();
     const uint32_t base = loaded(h3.regs + H3_3D + SST_TMU0 + SST_TEX_BASE);
@@ -1469,13 +1532,13 @@ TEST(tdfx_h3_wraps_its_command_fifo_as_the_card_reads)
     AccelCard card;
     const AccelDriver *const d = h3_opened(&card);
 
-    CHECK(d && d->texture(1, 256, 256));
+    CHECK(d && d->texture(1, 256, 256, 1));
 
     for (uint32_t pass = 0; pass < 3; pass++) {
         for (uint32_t i = 0; i < 256 * 256; i++)
             texels[i] = (uint16_t)(i * 3 + pass);
 
-        d->upload(1, (AccelRect){0, 0, 256, 256}, texels, 256);
+        d->upload(1, 0, (AccelRect){0, 0, 256, 256}, texels, 256);
     }
 
     h3_played();
@@ -1928,7 +1991,7 @@ TEST(tdfx_driver_sends_a_planar_quads_gradients_once)
     memcpy(trapezoid, quad, sizeof quad);
     trapezoid[2].x += 9;
     wc = (typeof(wc)){};
-    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card) && d->texture(1, 64, 64));
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card) && d->texture(1, 64, 64, 1));
     d->state(&TEXTURED);
 
     const AccelVertex second[3] = {quad[0], quad[2], quad[3]};
@@ -2024,7 +2087,7 @@ TEST(tdfx_h3_writes_only_the_state_registers_that_change)
     const AccelDriver *const d = h3_opened(&card);
 
     second.texture = 2;
-    CHECK(d && d->texture(1, 64, 64) && d->texture(2, 64, 64));
+    CHECK(d && d->texture(1, 64, 64, 1) && d->texture(2, 64, 64, 1));
     d->state(&TEXTURED);
     triangles_to(d, TRIANGLE, 3);
     h3_played();
@@ -2059,7 +2122,7 @@ TEST(tdfx_driver_flushes_the_sst1_packer_around_tmu_registers)
     const AccelDriver *const d = tdfx_driver(&PACKER_HOST, &fake);
 
     wc = (typeof(wc)){};
-    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card) && d->texture(1, 64, 64));
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card) && d->texture(1, 64, 64, 1));
     packer.fences = 0;
     d->state(&TEXTURED);
     triangles_to(d, TRIANGLE, 3);
@@ -2089,7 +2152,7 @@ TEST(tdfx_driver_flushes_a_packer_only_where_the_chip_has_one)
         AccelCard card;
         const AccelDriver *const d = tdfx_driver(&FAKE_HOST, k ? &cvg : &sst1);
 
-        CHECK(d && d->open(&(PciFunction){}, 320, 240, &card) && d->texture(1, 64, 64));
+        CHECK(d && d->open(&(PciFunction){}, 320, 240, &card) && d->texture(1, 64, 64, 1));
         stored_at(card_memory + PACKER, ARMED);
         d->state(&TEXTURED);
         triangles_to(d, TRIANGLE, 3);
@@ -2110,12 +2173,30 @@ TEST(tdfx_cvg_sends_texels_to_texture_space)
     for (uint32_t i = 0; i < 64 * 2; i++)
         texels[i] = (uint16_t)i;
 
-    CHECK(d && d->texture(1, 64, 64));
-    d->upload(1, (AccelRect){0, 5, 64, 2}, texels, 64);
+    CHECK(d && d->texture(1, 64, 64, 1));
+    d->upload(1, 0, (AccelRect){0, 5, 64, 2}, texels, 64);
     CHECK(word_at(SST_TEXELS + (2 << 17) + (5 << 9) + (2 << 1)) == 0);
     played(&cvg_fifo);
     CHECK(word_at(SST_TEXELS + (2 << 17) + (5 << 9) + (2 << 1)) == (3u << 16 | 2));
     CHECK(word_at(SST_TEXELS + (2 << 17) + (6 << 9) + (62 << 1)) == (127u << 16 | 126));
+    d->close();
+}
+
+/* A level's texels go in packets to its LOD's window: level 1 of a 64 by 64 texture, LOD 3's. */
+TEST(tdfx_cvg_sends_a_level_to_its_window)
+{
+    static uint16_t texels[32];
+
+    AccelCard card;
+    const AccelDriver *const d = cvg_opened(&card, true);
+
+    for (uint32_t i = 0; i < 32; i++)
+        texels[i] = (uint16_t)i;
+
+    CHECK(d && d->texture(1, 64, 64, 3));
+    d->upload(1, 1, (AccelRect){0, 5, 32, 1}, texels, 32);
+    played(&cvg_fifo);
+    CHECK(word_at(SST_TEXELS + (3 << 17) + (5 << 9) + (2 << 1)) == (3u << 16 | 2));
     d->close();
 }
 

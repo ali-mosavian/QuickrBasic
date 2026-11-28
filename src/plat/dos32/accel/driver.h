@@ -20,8 +20,8 @@
 #define ACCEL_CALL QX_CALL
 
 /* ABI 2 adds indexed textures and their palette; 3, write combining; 4, polygons; 5, a palette's
-   entries set in part; 6, a corner's reach. */
-enum { ACCEL_ABI = 6 };
+   entries set in part; 6, a corner's reach; 7, a texture's levels. */
+enum { ACCEL_ABI = 7 };
 
 /* A card's PCI ID as accel_ids holds it. */
 #define ACCEL_ID(vendor, device) ((uint32_t)(vendor) << 16 | (uint32_t)(device))
@@ -55,8 +55,16 @@ typedef enum : uint8_t { ACCEL_COLOUR = 1, ACCEL_TEXEL, ACCEL_MASK } AccelSource
 /* KEY: drawn where the texel's alpha is set, or an indexed texel's index is not 0, the colour
    alone too; LINEAR: the four texels round the point mixed; WRAP_S, WRAP_T: texels repeat across
    the texture, else its edge's are kept past it; REPLACE: TEXEL's texel alone, not times the
-   colour. */
-enum { ACCEL_KEY = 1, ACCEL_LINEAR = 2, ACCEL_WRAP_S = 4, ACCEL_WRAP_T = 8, ACCEL_REPLACE = 16 };
+   colour; MIPMAP: read from the texture's level nearest the texels a pixel steps, LINEAR within
+   it, else its first. */
+enum {
+    ACCEL_KEY = 1,
+    ACCEL_LINEAR = 2,
+    ACCEL_WRAP_S = 4,
+    ACCEL_WRAP_T = 8,
+    ACCEL_REPLACE = 16,
+    ACCEL_MIPMAP = 32,
+};
 
 /* A pixel's colour c goes in as c; c times alpha a over what is there (MIX); c times a added
    (ADD); KEEP writes none. a is the state's alpha times the colour's, each over 255. */
@@ -129,12 +137,19 @@ typedef struct {
     bool(ACCEL_CALL *open)(const PciFunction *card, uint16_t w, uint16_t h, AccelCard *out);
     /* The VGA's screen shown again, the card stopped. */
     void(ACCEL_CALL *close)(void);
-    /* Texture slot made w by h, within the card's limits, its texels undefined: false, no room. */
-    bool(ACCEL_CALL *texture)(uint32_t slot, uint16_t w, uint16_t h);
-    /* Texels r of texture slot from texels, ARGB1555 (A, KEY's), pitch texels a row; r.x and
-       r.w even. An indexed slot's texel is its index, the low byte; r.x and r.w multiples of
-       4. */
-    void(ACCEL_CALL *upload)(uint32_t slot, AccelRect r, const uint16_t *texels, uint32_t pitch);
+    /* Texture slot made w by h, within the card's limits, with levels, each half the last, its
+       shorter side 1 << least at least, its texels undefined: false, no room. */
+    bool(ACCEL_CALL *texture)(uint32_t slot, uint16_t w, uint16_t h, uint8_t levels);
+    /* Texels r of texture slot's level from texels, ARGB1555 (A, KEY's), pitch texels a row;
+       r.x and r.w even. An indexed slot's texel is its index, the low byte; r.x and r.w
+       multiples of 4. */
+    void(ACCEL_CALL *upload)(
+        uint32_t slot,
+        uint8_t level,
+        AccelRect r,
+        const uint16_t *texels,
+        uint32_t pitch
+    );
     void(ACCEL_CALL *forget)(uint32_t slot);
     /* Target slot made w by h, black, a depth buffer with it, cleared, when depth: false, no room. */
     bool(ACCEL_CALL *target)(uint32_t slot, uint16_t w, uint16_t h, bool depth);
@@ -156,9 +171,9 @@ typedef struct {
     /* The aimed target's clip filled, as the card fills fastest: its colour argb, its depth 0,
        far, as what has them. */
     void(ACCEL_CALL *clear)(uint32_t argb, uint8_t what);
-    /* Texture slot made w by h, a byte a texel: drawn as the palette's colour for its index.
-       False, no room. */
-    bool(ACCEL_CALL *indexed)(uint32_t slot, uint16_t w, uint16_t h);
+    /* Texture slot made w by h with levels, as texture, a byte a texel: drawn as the palette's
+       colour for its index. False, no room. */
+    bool(ACCEL_CALL *indexed)(uint32_t slot, uint16_t w, uint16_t h, uint8_t levels);
     /* Of the 256 colours, &HRRGGBB, an indexed texel draws as, n from first set from colours',
        the others kept. */
     void(ACCEL_CALL *palette)(const uint32_t *colours, uint32_t first, uint32_t n);

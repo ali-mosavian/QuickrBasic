@@ -76,6 +76,7 @@ static uint32_t *corners(Tdfx *const c, const uint32_t n, const bool fan)
 static void uploaded(
     Tdfx *const c,
     const TdfxTexture *const t,
+    const uint32_t k,
     const AccelRect r,
     const uint16_t *const texels,
     const uint32_t pitch
@@ -83,7 +84,7 @@ static void uploaded(
 {
     (void)c;
     const uint32_t x = (uint32_t)r.x << (t->indexed ? 0 : SST_TEXEL_AT);
-    const uint32_t at = t->level << SST_LEVEL_AT | (uint32_t)r.y << SST_ROW_AT | x;
+    const uint32_t at = (t->level + k) << SST_LEVEL_AT | (uint32_t)r.y << SST_ROW_AT | x;
 
     cmdfifo_texels(
         &queue,

@@ -179,19 +179,22 @@ static struct {
     char calls[CALLS];
     uint32_t ncalls;
     uint16_t texture_w[SLOTS], texture_h[SLOTS];
+    uint8_t levels[SLOTS];
     bool indexed[SLOTS];
     uint32_t textures;
     AccelState state;      /* the last sent */
     uint32_t palette[256]; /* as set */
     uint32_t entries;      /* palette entries set */
     uint16_t up[SLOTS][TILE];
-    AccelVertex last[3]; /* the last polygon's last triangle */
-    uint8_t sides;       /* its corners */
-    uint32_t room, held; /* the targets the card has room for, and holds */
-    uint32_t sent;       /* texels uploaded */
-    uint32_t filled;     /* the last clear's colour */
-    uint8_t what;        /* and what it cleared */
-    float past, area;    /* the furthest a corner lay past the screen's sides; the polygons' area */
+    AccelVertex last[3];    /* the last polygon's last triangle */
+    uint8_t sides;          /* its corners */
+    uint32_t room, held;    /* the targets the card has room for, and holds */
+    uint32_t sent;          /* texels uploaded */
+    uint32_t sent_level[4]; /* into each level past the first, the rest's in the last */
+    uint16_t first_of[4];   /* each such level's last upload's first texel */
+    uint32_t filled;        /* the last clear's colour */
+    uint8_t what;           /* and what it cleared */
+    float past, area; /* the furthest a corner lay past the screen's sides; the polygons' area */
 } fake;
 
 static void called(const char c)
@@ -226,7 +229,7 @@ static bool ACCEL_CALL fake_open(const PciFunction *card, uint16_t w, uint16_t h
 
 static void ACCEL_CALL fake_close(void) {}
 
-static bool ACCEL_CALL fake_texture(uint32_t slot, uint16_t w, uint16_t h)
+static bool ACCEL_CALL fake_texture(uint32_t slot, uint16_t w, uint16_t h, uint8_t levels)
 {
     called('T');
 
@@ -235,14 +238,24 @@ static bool ACCEL_CALL fake_texture(uint32_t slot, uint16_t w, uint16_t h)
 
     fake.texture_w[slot] = w;
     fake.texture_h[slot] = h;
+    fake.levels[slot] = levels;
     fake.textures++;
     return true;
 }
 
 static void ACCEL_CALL
-fake_upload(uint32_t slot, AccelRect r, const uint16_t *texels, uint32_t pitch)
+fake_upload(uint32_t slot, uint8_t level, AccelRect r, const uint16_t *texels, uint32_t pitch)
 {
     called('U');
+
+    if (level) {
+        const uint32_t k = level < 4 ? level : 3;
+
+        fake.sent_level[k] += (uint32_t)(r.w * r.h);
+        fake.first_of[k] = texels[0];
+        return;
+    }
+
     fake.sent += (uint32_t)(r.w * r.h);
 
     for (int32_t y = 0; y < r.h; y++)
@@ -284,9 +297,9 @@ static void ACCEL_CALL fake_state(const AccelState *s)
     fake.state = *s;
 }
 
-static bool ACCEL_CALL fake_indexed(uint32_t slot, uint16_t w, uint16_t h)
+static bool ACCEL_CALL fake_indexed(uint32_t slot, uint16_t w, uint16_t h, uint8_t levels)
 {
-    const bool made = fake_texture(slot, w, h);
+    const bool made = fake_texture(slot, w, h, levels);
 
     fake.calls[fake.ncalls - 1] = 'I';
 
@@ -650,6 +663,83 @@ TEST(accel_player_tiles_a_texture_wider_than_the_card)
     CHECK(fake.textures == 2 && fake.texture_w[1] == 256 && fake.texture_h[1] == 32);
     CHECK(fake.up[2][43] == 31 && fake.up[2][44] == 31 && fake.up[2][42] == 0);
     CHECK(fake.up[2][10 * 256 + 44] == (31 << 5 | 31));
+    accel_close();
+}
+
+enum { MIPMAPPED = 4 };
+
+/* A new list as begun's, the art's texture w by h with levels, and a pipeline reading them. */
+static void begun_with_levels(const uint32_t w, const uint32_t h, const uint32_t levels)
+{
+    list.n = list.nv = list.ni = 0;
+    PUT(QX_LIST_TEXTURE, SHOWN, SCREEN_W, SCREEN_H, QX_TEXTURE_RGBA);
+    PUT(QX_LIST_TEXTURE, ART, w, h, QX_TEXTURE_RGBA, levels);
+    pipeline(TEXTURED, QX_FIXED_TEXEL, 0);
+    pipeline(MIPMAPPED, QX_FIXED_TEXEL, QX_FIXED_MIPMAP);
+}
+
+/* A texture of one tile its own size keeps its levels: the card's texture made with them, each
+   sent into its level, and a MIPMAP draw reads them. Drawn again none is sent; a level sent again
+   goes alone. Without MIPMAP the card reads its first. */
+TEST(accel_player_sends_a_one_tile_textures_levels)
+{
+    static uint8_t texels[16 * 16 * 4];
+    static const uint8_t red[8 * 8 * 4] = {255, 0, 0, 255};
+
+    opened();
+    begun_with_levels(16, 16, 3);
+    PUT(QX_LIST_UPLOAD, ART, 0, 0, 16, 16, 64, POINTER(texels));
+    PUT(QX_LIST_UPLOAD, ART, 0, 0, 8, 8, 32, POINTER(red), 1);
+    PUT(QX_LIST_UPLOAD, ART, 0, 0, 4, 4, 16, POINTER(red), 2);
+
+    uint32_t from = list.n;
+
+    box(MIPMAPPED, ART, 0, 0, 4, 4, 0, 16);
+    CHECK(played(SHOWN, from, true));
+    CHECK(fake.levels[1] == 3 && fake.sent == 256);
+    CHECK(fake.sent_level[1] == 64 && fake.sent_level[2] == 16 && fake.first_of[1] == 0xFC00);
+    CHECK(fake.state.flags & ACCEL_MIPMAP);
+
+    fake.ncalls = 0;
+    fake.sent_level[1] = fake.sent_level[2] = 0;
+    list.n = list.nv = list.ni = 0;
+    box(MIPMAPPED, ART, 0, 0, 4, 4, 0, 16);
+    CHECK(played(SHOWN, 0, true) && !calls_of('U'));
+
+    list.n = list.nv = list.ni = 0;
+    PUT(QX_LIST_UPLOAD, ART, 0, 0, 8, 8, 32, POINTER(red), 1);
+    from = list.n;
+    box(TEXTURED, ART, 0, 0, 4, 4, 0, 16);
+    CHECK(played(SHOWN, from, true) && calls_of('U') == 1 && fake.sent_level[1] == 64);
+    CHECK(!(fake.state.flags & ACCEL_MIPMAP));
+    accel_close();
+}
+
+/* A texture of more tiles than one, or of a tile larger than itself, is drawn from its first
+   level: the card would read the level past a tile's edge, or its padding. */
+TEST(accel_player_mipmaps_only_a_texture_its_tiles_own_size)
+{
+    static uint8_t texels[300 * 10 * 4];
+
+    opened();
+    begun_with_levels(300, 10, 2);
+    PUT(QX_LIST_UPLOAD, ART, 0, 0, 300, 10, 1200, POINTER(texels));
+    PUT(QX_LIST_UPLOAD, ART, 0, 0, 150, 5, 600, POINTER(texels), 1);
+
+    uint32_t from = list.n;
+
+    box(MIPMAPPED, ART, 0, 0, 30, 1, 0, 300);
+    CHECK(played(SHOWN, from, true));
+    CHECK(fake.levels[1] == 1 && !fake.sent_level[1] && !(fake.state.flags & ACCEL_MIPMAP));
+    accel_close();
+
+    opened();
+    begun_with_levels(12, 12, 2);
+    from = list.n;
+    box(MIPMAPPED, ART, 0, 0, 3, 3, 0, 12);
+    CHECK(played(SHOWN, from, true));
+    CHECK(fake.texture_w[1] == 16 && fake.levels[1] == 1);
+    CHECK(!(fake.state.flags & ACCEL_MIPMAP));
     accel_close();
 }
 

@@ -247,6 +247,7 @@ static void flushed(Tdfx *const c, const uint32_t base)
 static void uploaded(
     Tdfx *const c,
     const TdfxTexture *const t,
+    const uint32_t k,
     const AccelRect r,
     const uint16_t *const texels,
     const uint32_t pitch
@@ -254,13 +255,13 @@ static void uploaded(
 {
     /* the port is texBaseAddr's: its level past the ones above it */
     const uint32_t texel = t->indexed ? 1 : TEXEL;
-    const uint32_t at =
-        tdfx_skipped(t->w, t->h, texel) + ((uint32_t)r.y * t->w + (uint32_t)r.x) * texel;
+    const uint16_t w = t->w >> k, h = t->h >> k;
+    const uint32_t at = tdfx_skipped(w, h, texel) + ((uint32_t)r.y * w + (uint32_t)r.x) * texel;
 
     cmdfifo_texels(
         &h3.queue,
         at,
-        t->w * texel,
+        w * texel,
         texels,
         pitch,
         (uint32_t)r.w,

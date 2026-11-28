@@ -433,12 +433,23 @@ static uint32_t aspect_of(const uint16_t w, const uint16_t h)
     return w > h ? log2_of(w / h) : log2_of(h / w);
 }
 
-uint32_t tdfx_lod(const uint16_t w, const uint16_t h)
+uint32_t tdfx_lod(const uint16_t w, const uint16_t h, const uint32_t levels)
 {
-    const uint32_t level = LEVEL * tdfx_level(w, h);
+    const uint32_t level = LEVEL * tdfx_level(w, h), last = level + LEVEL * (levels - 1);
+    const uint32_t bias = levels > 1 ? LEVEL / 2 : 0;
 
-    return level << SST_LOD_MIN | level << SST_LOD_MAX | (w > h ? SST_S_WIDER : 0) |
-           aspect_of(w, h) << SST_ASPECT;
+    return level << SST_LOD_MIN | last << SST_LOD_MAX | bias << SST_LOD_BIAS |
+           (w > h ? SST_S_WIDER : 0) | aspect_of(w, h) << SST_ASPECT;
+}
+
+uint32_t tdfx_chain(const uint16_t w, const uint16_t h, const uint32_t levels, const uint32_t texel)
+{
+    uint32_t bytes = 0;
+
+    for (uint32_t k = 0; k < levels; k++)
+        bytes += (uint32_t)(w >> k) * (uint32_t)(h >> k) * texel;
+
+    return bytes;
 }
 
 uint32_t tdfx_skipped(const uint16_t w, const uint16_t h, const uint32_t texel)

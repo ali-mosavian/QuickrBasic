@@ -17,6 +17,10 @@
  * An INDEX texture's tiles are the driver's indexed ones, drawn through the card's palette: made
  * for the target as indices.h holds it, and sent when another than the card's. Into a target
  * holding codes, its texel alone, and a blend drawn where its alpha is at least a half.
+ *
+ * A texture's levels after its first are kept here as sent. The card holds them, and a MIPMAP
+ * draw reads them, only for a texture that is one tile of its own size and no target; any other
+ * is drawn from its first.
  */
 #include "plat/dos32/accel/accel.h"
 #include "lib/reciprocal.h"
@@ -98,6 +102,10 @@ typedef struct {
     bool any;                      /* INDEX: drawn into, its texels may hold any */
     uint32_t changes;              /* its texels', counted */
     struct Looked *looked;         /* a one-tile INDEX texture's, by lookup: null, none made */
+    uint8_t levels;                /* TEXTURE's, the first counted */
+    uint16_t *chain;               /* its levels after the first, in turn: null, none yet, all 0 */
+    uint8_t tile_levels;           /* its tile's when made */
+    uint32_t stale;                /* the levels its tile lacks, a bit each */
 } Texture;
 
 /* A one-tile INDEX texture's tile with its texels through a lookup, drawn through the palette
@@ -419,17 +427,23 @@ static void evicted(void *const object)
         forgotten(t);
 }
 
-/* A texture slot made w by h, indexed or not; if no room, the tiles of each texture not drawn
-   from in this play given back, then, unless for a lookup's, each tile through a lookup: 0, no
-   room still. */
-static uint32_t tile_made(const uint16_t w, const uint16_t h, const bool indexed, const bool looked)
+/* A texture slot made w by h with levels, indexed or not; if no room, the tiles of each texture not
+   drawn from in this play given back, then, unless for a lookup's, each tile through a lookup: 0,
+   no room still. */
+static uint32_t tile_made(
+    const uint16_t w,
+    const uint16_t h,
+    const uint8_t levels,
+    const bool indexed,
+    const bool looked
+)
 {
     for (uint32_t tries = 0; tries < (looked ? 2u : 3u); tries++) {
         const uint32_t slot = taken(p.slots, ACCEL_TEXTURES);
 
         flushed();
 
-        if (slot && (indexed ? p.d->indexed(slot, w, h) : p.d->texture(slot, w, h)))
+        if (slot && (indexed ? p.d->indexed(slot, w, h, levels) : p.d->texture(slot, w, h, levels)))
             return slot;
 
         if (slot)
@@ -450,12 +464,45 @@ static uint16_t *texels_of(Texture *const t)
     return t->texels;
 }
 
-/* t's tiles made and holding its texels: false, no room. */
-static bool tiled(Texture *const t)
+/* t's tile is to hold its levels: one tile of its own size, no target's. */
+static bool chained(const Texture *const t)
 {
     const CutGrid *const g = &t->grid;
 
-    if (!texels_of(t))
+    return t->levels > 1 && g->across == 1 && g->down == 1 && t->w == g->tile_w &&
+           t->h == g->tile_h && t->target == NONE;
+}
+
+/* t's tile holds its levels, and a draw reads them. */
+static bool mipmapped(const Texture *const t) { return t->tile_levels > 1 && chained(t); }
+
+/* t's level k, k from 1: its texels' first in the chain. */
+static uint32_t level_at(const Texture *const t, const uint32_t k)
+{
+    uint32_t at = 0;
+
+    for (uint32_t i = 1; i < k; i++)
+        at += (uint32_t)(t->w >> i) * (uint32_t)(t->h >> i);
+
+    return at;
+}
+
+/* t's chain, made 0 as first needed: null, no memory. */
+static uint16_t *chain_of(Texture *const t)
+{
+    if (!t->chain)
+        t->chain = zeroed((size_t)level_at(t, t->levels) * sizeof *t->chain);
+
+    return t->chain;
+}
+
+/* t's tiles made and holding its texels, and its levels when chained: false, no room. */
+static bool tiled(Texture *const t)
+{
+    const CutGrid *const g = &t->grid;
+    const uint8_t levels = chained(t) ? t->levels : 1;
+
+    if (!texels_of(t) || (t->levels > 1 && !chain_of(t)))
         return false;
 
     t->used = p.plays;
@@ -474,8 +521,13 @@ static bool tiled(Texture *const t)
             if (!made && t->top >= t->bottom)
                 continue;
 
-            if (made && !(*slot = tile_made(g->tile_w, g->tile_h, t->index, false)))
+            if (made && !(*slot = tile_made(g->tile_w, g->tile_h, levels, t->index, false)))
                 return false;
+
+            if (made) {
+                t->tile_levels = levels;
+                t->stale = (1u << levels) - 2;
+            }
 
             const int32_t from = t->top - top,
                           to = last && t->bottom >= t->h ? tall : t->bottom - top;
@@ -502,9 +554,24 @@ static bool tiled(Texture *const t)
                 rows
             );
             flushed();
-            p.d->upload(*slot, (AccelRect){0, y0, (int32_t)wide, y1 - y0}, rows, wide);
+            p.d->upload(*slot, 0, (AccelRect){0, y0, (int32_t)wide, y1 - y0}, rows, wide);
         }
 
+    for (uint32_t k = 1; k < t->tile_levels && t->tiles[0]; k++)
+        if (t->stale >> k & 1) {
+            const uint16_t w = t->w >> k, h = t->h >> k;
+
+            flushed();
+            p.d->upload(
+                t->tiles[0],
+                (uint8_t)k,
+                (AccelRect){0, 0, w, h},
+                t->chain + level_at(t, k),
+                w
+            );
+        }
+
+    t->stale = 0;
     t->top = t->bottom = 0;
     return true;
 }
@@ -547,7 +614,8 @@ static const Looked *looked_through(Texture *const t, const IndicesHeld held, co
     const uint32_t reached = texels_reached(t->w, 0, g->tile_w);
     const uint32_t wide = (reached + TEXELS_INDEXED - 1) & ~(TEXELS_INDEXED - 1);
     const uint32_t tall = texels_reached(t->h, 0, g->tile_h);
-    const uint32_t slot = l->slot || none ? l->slot : tile_made(g->tile_w, g->tile_h, true, true);
+    const uint32_t slot =
+        l->slot || none ? l->slot : tile_made(g->tile_w, g->tile_h, 1, true, true);
 
     *l = (Looked){slot, giving, t->changes, keyed, none || !slot, {}};
 
@@ -565,7 +633,7 @@ static const Looked *looked_through(Texture *const t, const IndicesHeld held, co
         rows[i] = (uint16_t)((rows[i] & ~BYTE) | to[rows[i] & BYTE]);
 
     flushed();
-    p.d->upload(slot, (AccelRect){0, 0, (int32_t)wide, (int32_t)tall}, rows, wide);
+    p.d->upload(slot, 0, (AccelRect){0, 0, (int32_t)wide, (int32_t)tall}, rows, wide);
     return l;
 }
 
@@ -870,6 +938,7 @@ static void discarded(void *const object)
     Texture *const t = object;
 
     pmem_free(t->texels);
+    pmem_free(t->chain);
     pmem_free(t->tiles);
     pmem_free(t->looked);
     pmem_free(t);
@@ -1173,13 +1242,14 @@ static void op_write(const QxListEntry *const e)
 static void op_texture(const QxListEntry *const e)
 {
     const uint32_t *const a = e->arg;
-    const uint32_t id = a[0], w = a[1], h = a[2];
+    const uint32_t id = a[0], w = a[1], h = a[2], levels = e->args > 4 ? a[4] : 1;
     const bool depth = a[3] == QX_TEXTURE_DEPTH, index = a[3] == QX_TEXTURE_INDEX;
 
     texture_freed(id);
 
     if (!w || !h || w > UINT16_MAX || h > UINT16_MAX ||
-        (!depth && !index && a[3] != QX_TEXTURE_RGBA))
+        (!depth && !index && a[3] != QX_TEXTURE_RGBA) || !levels || levels > BITS / 2 ||
+        !(w >> (levels - 1)) || !(h >> (levels - 1)))
         return;
 
     Texture *const t = zeroed(sizeof *t);
@@ -1195,6 +1265,7 @@ static void op_texture(const QxListEntry *const e)
         .target = NONE,
         .blank = true,
         .indices = {1},
+        .levels = depth ? 1 : (uint8_t)levels,
     };
 
     if (depth) {
@@ -1238,24 +1309,31 @@ static void marked(
 static void op_upload(const QxListEntry *const e)
 {
     const uint32_t *const a = e->arg;
-    const uint32_t x = a[1], y = a[2], w = a[3], h = a[4];
+    const uint32_t x = a[1], y = a[2], w = a[3], h = a[4], k = e->args > 8 ? a[8] : 0;
     Texture *const t = id_get(&p.textures, a[0]);
+    const uint32_t wide = t ? (uint32_t)t->w >> k : 0, tall = t ? (uint32_t)t->h >> k : 0;
 
-    uint16_t *const texels =
-        t && !t->depth && w && h && x <= t->w && w <= t->w - x && y <= t->h && h <= t->h - y
-            ? texels_of(t)
-            : nullptr;
+    if (!t || t->depth || k >= t->levels || !w || !h || x > wide || w > wide - x || y > tall ||
+        h > tall - y)
+        return;
+
+    uint16_t *const texels = k ? chain_of(t) : texels_of(t);
 
     if (!texels)
         return;
 
-    uint16_t *const to = texels + (size_t)y * t->w + x;
+    uint16_t *const to = texels + (k ? level_at(t, k) : 0) + (size_t)y * wide + x;
 
     if (t->index) {
-        texels_from_indices(to, t->w, qx_list_pointer(a + 6), a[5], w, h);
+        texels_from_indices(to, wide, qx_list_pointer(a + 6), a[5], w, h);
         marked(t, qx_list_pointer(a + 6), a[5], w, h);
     } else
-        texels_from_rgba(to, t->w, qx_list_pointer(a + 6), a[5], w, h);
+        texels_from_rgba(to, wide, qx_list_pointer(a + 6), a[5], w, h);
+
+    if (k) {
+        t->stale |= 1u << k;
+        return;
+    }
 
     t->blank = false;
     dirtied(t, (int32_t)y, (int32_t)(y + h));
@@ -1425,7 +1503,8 @@ static void triangles_drawn(
             g = gridded(t, (uint8_t)(pl->flags & ~cut), r, &flags);
             g.band = band;
             memcpy(gridded_for, r, sizeof r);
-            c.s.flags = flags | (alone ? ACCEL_REPLACE : 0);
+            c.s.flags = flags | (alone ? ACCEL_REPLACE : 0) |
+                        (!l && pl->flags & QX_FIXED_MIPMAP && mipmapped(t) ? ACCEL_MIPMAP : 0);
             c.s.texture = c.tiles[0];
             grid = true;
             whole = g.across == 1 && g.down == 1 && !g.wrap_s && !g.wrap_t;

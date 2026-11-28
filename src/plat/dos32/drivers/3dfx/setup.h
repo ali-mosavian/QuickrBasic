@@ -131,8 +131,11 @@ uint32_t tdfx_argb(uint32_t colour, uint8_t share);
    keyed by the chroma key, its index 0's colour. */
 TdfxWords tdfx_words(const AccelState *s, uint32_t draw, bool indexed);
 /* A w by h texture's tLOD: its sides powers of two up to 256, the longer at most 8 times the
-   shorter. */
-uint32_t tdfx_lod(uint16_t w, uint16_t h);
+   shorter; with more levels than 1, read from the level nearest a pixel's step among them, the
+   card's LOD, whose fraction it drops, raised half a level. */
+uint32_t tdfx_lod(uint16_t w, uint16_t h, uint32_t levels);
+/* The bytes of a w by h texture's levels, texel bytes a texel. */
+uint32_t tdfx_chain(uint16_t w, uint16_t h, uint32_t levels, uint32_t texel);
 /* Its level: 0 its longer side 256, 8 one texel; its texels times 1 << level are LOD 0's. */
 uint32_t tdfx_level(uint16_t w, uint16_t h);
 /* The bytes LODs 0 up to its own of its aspect would take, texel bytes a texel: its base is its

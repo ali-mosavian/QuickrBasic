@@ -456,6 +456,7 @@ uint32_t sst_based(const Tdfx *const c, const uint32_t at)
 static void uploaded(
     Tdfx *const c,
     const TdfxTexture *const t,
+    const uint32_t k,
     const AccelRect r,
     const uint16_t *const texels,
     const uint32_t pitch
@@ -463,7 +464,7 @@ static void uploaded(
 {
     const uint32_t a_word = t->indexed ? 4 : 2, words = (uint32_t)r.w / a_word;
     const uint32_t x = t->indexed ? (uint32_t)r.x : (uint32_t)r.x << SST_TEXEL_AT;
-    volatile uint8_t *const level = c->texels + (t->level << SST_LEVEL_AT) + x;
+    volatile uint8_t *const level = c->texels + ((t->level + k) << SST_LEVEL_AT) + x;
 
     unpacked(c, 0);
 

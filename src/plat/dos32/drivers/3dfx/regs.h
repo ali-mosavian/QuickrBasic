@@ -125,6 +125,12 @@ enum : uint32_t {
     SST_SEQUENTIAL = 1u << 31,
 };
 
-/* tLOD: the LOD's shift, 4 a level; S the wider; the aspect's shift. */
-enum : uint32_t { SST_LOD_MIN = 0, SST_LOD_MAX = 6, SST_S_WIDER = 1u << 20, SST_ASPECT = 21 };
+/* tLOD: the LOD's shift, 4 a level; the bias's, 4 a level; S the wider; the aspect's shift. */
+enum : uint32_t {
+    SST_LOD_MIN = 0,
+    SST_LOD_MAX = 6,
+    SST_LOD_BIAS = 12,
+    SST_S_WIDER = 1u << 20,
+    SST_ASPECT = 21,
+};
 #endif
