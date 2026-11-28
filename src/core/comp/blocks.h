@@ -50,9 +50,12 @@ typedef struct {
 /* The program's blocks and procedures, as blok_pair found them; its arena holds them. */
 typedef struct {
     Arena arena;
-    BTab blocks;     /* BlockEnt, by position */
-    BTab procs;      /* Proc, by number: 0 the module */
-    uint32_t nnames; /* the program's M_VAR tokens */
+    BTab blocks;       /* BlockEnt, by position */
+    BTab procs;        /* Proc, by number: 0 the module */
+    uint32_t nnames;   /* the program's M_VAR tokens */
+    uint32_t *bylines; /* the procedures with lines, by their first: proc_before's */
+    uint32_t nbylines; /* its entries */
+    uint32_t indexed;  /* procs.n when bylines was made */
 } Blok;
 
 /* No blocks, no procedures but 0, the module's. Out of memory raises through f. */
@@ -77,8 +80,8 @@ static inline uint16_t blok_nargs(const Proc *const p)
 /* A FUNCTION's record or array result's parameter, its variable (PF_RESARG). */
 static inline uint32_t blok_resvar(const Proc *const p) { return p->params[p->npar - 1].var; }
 /* bk_proc: the procedure line is in, 0 none. */
-uint32_t blok_procof(const Blok *b, uint32_t line);
+uint32_t blok_procof(Blok *b, uint32_t line);
 /* A line at or before position pos: the first of the last procedure that starts there, else the
    program's. */
-uint32_t blok_line_before(const Blok *b, uint32_t pos);
+uint32_t blok_line_before(Blok *b, uint32_t pos);
 #endif

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' text: searching, cases, splitting and joining strings
 native function find(s as string, sub as string) as int
 native function find_from(s as string, sub as string, start as int) as int
@@ -31,8 +31,8 @@ function to_int(s as string) as int or Error
 end function
 
 ' s's parts between seps; one part, s, when sep is not there
-function split(s as string, sep as string) as string[]
-    var parts as string[]
+function split(s as string, sep as string) as list[string]
+    var parts as list[string]
     var start = 0
     var at = find(s, sep)
     while at >= 0 and len(sep) > 0
@@ -44,7 +44,7 @@ function split(s as string, sep as string) as string[]
     return parts
 end function
 
-function join(parts as string[], sep as string) as string
+function join(parts as list[string], sep as string) as string
     var b as Builder
     for i in 0..len(parts)
         if i > 0 then b.add(sep)
@@ -55,7 +55,7 @@ end function
 
 ' a string built in parts: add them, then take text()
 type Builder
-    parts as string[]
+    parts as list[string]
 
     fn add(mut self, s as string)
         self.parts.push(s)

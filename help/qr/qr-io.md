@@ -15,7 +15,7 @@ The colours are COLOR's, 0 to 15. at() moves the cursor as LOCATE
 does.
 
 ## Example
-    ' OPTION DIALECT QUICKR
+    option dialect quickr
     import io
     io.clear()
     io.at(5, 10)

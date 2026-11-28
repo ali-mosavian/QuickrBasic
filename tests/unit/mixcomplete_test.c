@@ -19,7 +19,7 @@ static const char *const files[] = {
     nullptr,
 };
 
-#define DIALECT "' OPTION DIALECT QUICKR\n"
+#define DIALECT "option dialect quickr\n"
 
 static const char geo[] = DIALECT "type Spot\n"
                                   "    x as int\n"
@@ -38,12 +38,12 @@ static const char geo[] = DIALECT "type Spot\n"
                                   "    let total = w * h\n"
                                   "    return total\n"
                                   "end function\n"
-                                  "function names() as string[]\n"
-                                  "    var n as string[]\n"
+                                  "function names() as list[string]\n"
+                                  "    var n as list[string]\n"
                                   "    return n\n"
                                   "end function\n"
                                   "type Bag\n"
-                                  "    items as int[]\n"
+                                  "    items as list[list[int]]\n"
                                   "end type\n"
                                   "private function helper() as int\n"
                                   "    return 1\n"
@@ -60,7 +60,7 @@ static const char shapes[] = "TYPE Rect\n"
                              "SUB Show (a AS LONG)\n"
                              "    PRINT a\n"
                              "END SUB\n"
-                             "SUB Fill (a() AS BYTE)\n"
+                             "SUB Fill (a AS BYTE)\n"
                              "END SUB\n"
                              "PRIVATE SUB Hidden\n"
                              "END SUB\n";
@@ -113,7 +113,7 @@ static const char qr_main[] = DIALECT "import geo\n"
                                       "import shapes\n"
                                       "var s as geo.Spot\n"
                                       "var r as shapes.Rect\n"
-                                      "var xs as int[]\n"
+                                      "var xs as list[int]\n"
                                       "var d as dict[string, int]\n"
                                       "let w = \"hi\"\n"
                                       "let total = 1\n"
@@ -145,14 +145,15 @@ TEST(mixcomplete_qb_main_offers_a_qbasic_modules_exports)
     fx_done(S, files);
 }
 
-/* After a Quickr module's name, a QBasic program offered its own names, not the module's. */
+/* After a Quickr module's name, a QBasic program offered its own names, not the module's: its
+   functions, records and consts. */
 TEST(mixcomplete_qb_main_offers_a_quickr_modules_exports)
 {
     open_with(S, qb_main);
     CHECK(offers(S, "print total", "a = geo.", "area"));
     CHECK(offers(S, "print total", "dim q as geo.", "Spot"));
     CHECK(!offers(S, "print total", "a = geo.", "helper"));
-    CHECK(!offers(S, "print total", "a = geo.", "limit")); /* QBasic sees no const */
+    CHECK(offers(S, "print total", "a = geo.", "limit")); /* its consts CONSTs */
     CHECK(!offers(S, "print total", "a = geo.", "Area"));
     CHECK(!offers(S, "print total", "a = geo.", "total"));
     fx_done(S, files);

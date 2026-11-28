@@ -57,9 +57,10 @@ bool qsem_unify(
     const QTy *const y = qast_compound(t) ? qast_ty(S->prog, t) : nullptr;
 
     switch (x->kind) {
+    case QX_DYN:
     case QX_LIST:
     case QX_ARRAY:
-        return !y || (y->kind != QT_LIST && y->kind != QT_ARRAY) ||
+        return !y || (y->kind != QT_DYN && y->kind != QT_ARRAY) ||
                qsem_unify(S, tp, ntp, x->elem, y->elem, targs);
 
     case QX_OPT:
@@ -655,10 +656,12 @@ static bool qsem_varplace(QSem *const S, const QExpr *const e)
     return v && (v->kind == QV_VAR || v->kind == QV_MUT || (v->kind == QV_EACH && v->mut));
 }
 
-/* Var place v for QBasic by-reference parameter p: of its type, so the var sees the change. */
+/* Var place v for QBasic procedure f's by-reference parameter p: of its type, so the var sees the
+   change; a T[]'s any array of its elements, by its descriptor. */
 static QExpr *qsem_refarg(QSem *const S, QExpr *const v, const QParam *const p)
 {
-    if (v->type != p->var->type && v->type != QY_ERROR) {
+    if (v->type != p->var->type && v->type != QY_ERROR &&
+        !qsem_lendable(S, v->type, p->var->type)) {
         qsem_say(
             S,
             v->tok,
@@ -764,8 +767,11 @@ QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *f)
         if ((p->mut || ref) && !lend)
             v->type = QY_ERROR;
 
+        const bool lent = !qast_fresh(v) && qsem_lendable(S, v->type, p->var->type);
+
         e->argv[k] = ref      ? qsem_refarg(S, v, p)
                      : p->mut ? qsem_mutarg(S, v, p)
+                     : lent   ? qsem_addressed(S, v)
                               : qsem_addressed(S, qsem_coerce(S, v, p->var->type));
 
         if (f->foreign && !ref)
@@ -775,8 +781,9 @@ QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *f)
     if (qsem_inlines(f)) {
         bool ok = true;
 
-        for (uint32_t k = 0; k < f->npar; k++)
-            ok &= e->argv[k]->type != QY_ERROR;
+        for (uint32_t k = 0; k < f->npar; k++) /* an array lent by its descriptor: called */
+            ok &= e->argv[k]->type != QY_ERROR &&
+                  !qsem_lendable(S, e->argv[k]->type, f->params[k].var->type);
 
         if (ok)
             return qsem_inline(S, e, f, e->argv);

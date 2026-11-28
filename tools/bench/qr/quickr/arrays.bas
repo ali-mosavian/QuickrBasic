@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 var a as int[1000]
 for i in 0..1000
     a[i] = i * 3

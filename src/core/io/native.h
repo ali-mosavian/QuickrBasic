@@ -17,10 +17,12 @@ typedef struct {
     bool tried;
 } NatvFile;
 
-/* A call as the host makes it (vm/ncall.c): the extension's QxCall, the run's stop flag. */
+/* A call as the host makes it (vm/ncall.c): the extension's QxCall, the run's stop flag, where
+   why its error was raised goes. */
 typedef struct {
     QxCall c;
     const volatile uint8_t *stop;
+    char *why;
 } NatvCall;
 
 /* The .qbx files read, a process's: CHAIN and RUN keep them; the host's table they are given. */
@@ -29,7 +31,8 @@ typedef struct Natv {
     uint32_t nfiles, filecap;
     QxHost host;
     Fault *fault;
-    bool running; /* the loaded modules' start called, their stop not yet */
+    bool running;        /* the loaded modules' start called, their stop not yet */
+    char why[FAULT_WHY]; /* the last error_why's text */
 } Natv;
 
 void natv_init(Natv *n, Fault *f);

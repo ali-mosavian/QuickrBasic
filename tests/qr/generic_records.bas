@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' generic records: one copy of the type and its methods per types given
 import shelf
 from shelf import Shelf
@@ -7,7 +7,7 @@ type Vec
     y as int
 end type
 type Stack[T]
-    items as T[]
+    items as list[T]
 
     fn push(mut self, x as T)
         self.items.push(x)
@@ -39,7 +39,7 @@ type Stack[T]
         return out
     end fn
 
-    fn sorted(self) as T[]
+    fn sorted(self) as list[T]
         var a = self.items
         a.sort()
         return a
@@ -82,8 +82,8 @@ var vs as Stack[Vec]
 vs.push(Vec(1, 2))
 vs.push(Vec(3, 4))
 print vs.items[1].x; " "; vs.size()
-var ls as Stack[int[]]
-var row as int[]
+var ls as Stack[list[int]]
+var row as list[int]
 row.push(5)
 ls.push(row)
 ls.items[0].push(6)

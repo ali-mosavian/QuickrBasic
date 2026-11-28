@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' test blocks and assert: their errors
 test sums
 end test

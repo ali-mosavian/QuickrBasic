@@ -39,6 +39,7 @@
  *    wend                 JMP (while's line, 0)
  */
 #include "qr/qcg_int.h"
+#include "comp/codegen.h"
 
 /* ---- statements */
 
@@ -505,7 +506,9 @@ static void qcg_body(QCg *const g, const QStmt *const s)
             qcg_simple(g, s->other);
             qcg_land(g, over);
         } else if (s->oneline) {
-            qcg_to(g, O_I_JF, s, BOFF, TO_STMT);
+            if (!cg_cmpif(c)) /* its line's end, as QBasic's one-line IF */
+                qcg_to(g, O_I_JF, s, BOFF, TO_STMT);
+
             qcg_simple(g, s->body);
         } else
             qcg_clause(g, O_I_JF, s->link);

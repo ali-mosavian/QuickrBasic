@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' time: now()'s shape, a Clock's first tick 0, sleep's wait
 import time
 let n = time.now()

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' strings' bytes and slices, lists' slices
 let s = "hello, world"
 print s[0]; " "; s[4]; " "; len(s)
@@ -15,9 +15,9 @@ next
 print n
 type P
     name as string
-    tags as string[]
+    tags as list[string]
 end type
-var a as int[]
+var a as list[int]
 for i in 0..10
     a.push(i * i)
 next
@@ -28,7 +28,7 @@ c.push(7)
 print len(c); " "; c[3]; " "; len(a); " "; len(a[8..]); " "; len(a[20..])
 a = a[5..]
 print len(a); " "; a[0]
-var ps as P[]
+var ps as list[P]
 ps.push(P("x"))
 ps[0].tags.push("t1")
 ps[0].tags.push("t2")

@@ -154,11 +154,11 @@ Built on `ui/debuginline.c`: the names are where the highlighter colours one, th
 
 ## Quickr
 
-The editor takes both dialects. A file is Quickr's when its first line is `' OPTION DIALECT QUICKR`,
+The editor takes both dialects. A file is Quickr's when its first statement is `option dialect quickr`,
 QBasic's otherwise. The main file's is the program's; its modules may be of either
 ([Interop](language-design.md#interop)).
 
-- That first line is shown and saved but cannot be typed over, cut or joined: a file's dialect is fixed.
+- That line is shown and saved but cannot be typed over, cut or joined: a file's dialect is fixed.
 - File, New asks the dialect; a Quickr program starts with that line. The status bar names the
   program's dialect before its bar, when the errors' count leaves room.
 - A Quickr line is stored as typed, its text the record's body (`LF_TEXT`), and saved as typed.

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' methods: their names, self, and calls on a value or on the type
 type Vec
     x as double
@@ -50,7 +50,7 @@ let v = Vec(3, 4)
 v.scale(2)
 print Vec.length(v); " "; v.polar(1).x; " "; v.nothing(); " "; Vec.nothing(1)
 print v.length2(); " "; v.length
-var a as int[]
+var a as list[int]
 print a.len()
 let s = Vec.scale
 print self

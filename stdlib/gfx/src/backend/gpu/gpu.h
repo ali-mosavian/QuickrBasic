@@ -17,7 +17,7 @@
  * draw, which every pass into it keeps after. A MIPMAP draw's source has a texture of its own with
  * its root's levels (core/levels.h), never a page: its view's levels, made on the CPU from its
  * texels, go in each level at the view's place halved, made again when what they were made from
- * changed. A host before minor 7 has none.
+ * changed. A host before minor 8 has none.
  *
  * A draw that reads what is behind its pixels (GpuCall.behind) reads a copy of its target, made
  * before it when the target changed under it since the last: drawn in, by a call before this one,
@@ -137,7 +137,7 @@ typedef struct {
     uint8_t *page;   /* the canvas's pixels, read back */
     uint32_t shader; /* the language (QxShader) */
     bool fixed;      /* it is FIXED: none (fixed.h) */
-    bool mipmaps;    /* it takes a texture's levels: minor 7 */
+    bool mipmaps;    /* it takes a texture's levels: minor 8 */
     Palette *pal;    /* gfx's, for a fixed host's colours */
     uint64_t made[GPU_PIPELINES / 64]; /* the pipelines made, a bit each */
     GpuCount count;                    /* since gpu_counted */

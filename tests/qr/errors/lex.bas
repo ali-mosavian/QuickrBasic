@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' the lexer's errors
 print 0x
 print 0b102

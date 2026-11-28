@@ -259,7 +259,8 @@ void qrt_str(Session *const S)
 
 /* ---- lists */
 
-/* The list at cell: its elements' count, its array's fast; *data their first's address. */
+/* The array at cell: its elements' count, its fast, all its dimensions' when it has no fast (a
+   QBasic array's of more than one); *data their first's address. */
 static uint32_t qrt_len(const Addr cell, Addr *const data)
 {
     const ArrSlot *const s = (const ArrSlot *)at(cell);
@@ -270,8 +271,14 @@ static uint32_t qrt_len(const Addr cell, Addr *const data)
     }
 
     const ArrayHdr *const a = (const ArrayHdr *)at(s->hdr);
+    uint32_t n = a->fast;
     *data = a->data;
-    return a->fast;
+
+    if (!n && a->dims > 1)
+        for (uint8_t i = n = 1; i <= a->dims; i++)
+            n *= a->count[i - 1];
+
+    return n;
 }
 
 /* The list at cell one longer: within its room, else in twice the room, its elements kept, the
@@ -324,6 +331,91 @@ static void qrt_cut(Session *const S, const Addr cell, const uint32_t et)
 static void qrt_shrink(Session *const S, const Addr cell, const uint32_t et)
 {
     qrt_cut(S, cell, et);
+    arry_sweep(&S->arry);
+}
+
+/* The array at cell n long, of one dimension: those past n cut, new ones empty. */
+static void qrt_relength(Session *const S, const Addr cell, const uint32_t et, const uint32_t n)
+{
+    ArrSlot *const s = (ArrSlot *)at(cell);
+    Addr data;
+
+    for (uint32_t len = qrt_len(cell, &data); len > n; len--)
+        qrt_cut(S, cell, et);
+
+    ArrayHdr *const a = s->hdr ? (ArrayHdr *)at(s->hdr) : nullptr;
+
+    if (a && a->count[0] >= n) /* cut ones are emptied */
+        a->fast = n;
+    else if (n)
+        arry_relen(&S->arry, s, et, n, n);
+}
+
+/* The array at cell k dimensions of the sizes on the stack, the first the deepest: one of one
+   dimension relengthened; else REDIM PRESERVE's, its fast its elements' count. None 0: emptied.
+   Illegal function call: a size under 0; Duplicate definition: a fixed array's; Subscript out
+   of range: another count of dimensions than its. */
+static void qrt_resize(Session *const S, const Addr cell, const uint32_t et, const uint8_t k)
+{
+    Arry *const ay = &S->arry;
+    ArrSlot *const s = (ArrSlot *)at(cell);
+    uint32_t elems = 1;
+
+    for (uint8_t i = k; i-- > 0;) {
+        const int32_t n = exec_popi(&S->vm);
+
+        if (n < 0)
+            fault_error(&S->fault, E_IQ);
+
+        ay->subs[i] = n - 1;
+        ay->lbounds[i] = 0;
+        elems *= (uint32_t)n;
+    }
+
+    if (s->hdr && arry_fixed(s->hdr))
+        fault_raise(
+            &S->fault,
+            (Failure){
+                .code = E_RD,
+                .at = FAULT_KEEP,
+                .line = FAULT_KEEP,
+                .why = "a fixed array keeps its size",
+            }
+
+        );
+
+    if (!elems || (k == 1 && (!s->hdr || ((const ArrayHdr *)at(s->hdr))->dims == 1)))
+        qrt_relength(S, cell, et, k == 1 ? elems : 0);
+    else {
+        arry_redim(ay, s, et, k, s->hdr != 0);
+        ((ArrayHdr *)at(s->hdr))->fast = elems;
+    }
+
+    arry_sweep(ay);
+}
+
+/* The int[] at cell dst each dimension's size of the array at cell src, read first: a field
+   cell's goes with the next allocation. A list's its length. */
+static void qrt_shape(Session *const S, const Addr src, const Addr dst)
+{
+    const Addr h = ((const ArrSlot *)at(src))->hdr;
+    const ArrView v = h ? arry_view(h) : (ArrView){};
+
+    const uint8_t dims = h ? v.dims : 1;
+    uint32_t counts[MAXDIMS] = {};
+
+    Addr data;
+
+    for (uint8_t i = 0; h && i < dims; i++)
+        counts[i] = dims == 1 ? qrt_len(src, &data) : arry_view_count(&v, i);
+
+    qrt_relength(S, dst, ET_I4, 0);
+    qrt_relength(S, dst, ET_I4, dims);
+    qrt_len(dst, &data);
+
+    for (uint8_t i = 0; i < dims; i++)
+        wr32(data + 4 * i, counts[i]);
+
     arry_sweep(&S->arry);
 }
 
@@ -1367,6 +1459,75 @@ void qrt_conv(Session *const S)
     exec_push(vm, qrt_cell(to, x));
 }
 
+/* Is a below b, both numbers of n? */
+static bool qrt_below(const QrtNum n, const Cell a, const Cell b)
+{
+    if (n == QN_F32)
+        return a.f < b.f;
+    if (n == QN_F64)
+        return a.d < b.d;
+
+    const uint64_t x = qrt_get(n, a), y = qrt_get(n, b);
+    return qrt_unsigned(n) ? x < y : (int64_t)x < (int64_t)y;
+}
+
+/* X N.ABS n ( x -- r ): -x if x < 0 else x; Overflow past n's range. */
+void qrt_nabs(Session *const S)
+{
+    Vm *const vm = &S->vm;
+    const QrtNum n = (QrtNum)exec_u8(vm);
+    Cell x = exec_pop(vm);
+
+    if (qrt_below(n, x, (Cell){}))
+        switch (n) {
+        case QN_F32:
+            x.f = -x.f;
+            break;
+
+        case QN_F64:
+            x.d = -x.d;
+            break;
+
+        default: {
+            const uint64_t r = 0 - qrt_get(n, x);
+
+            if (!qrt_fits(n, r, true))
+                fault_error(&S->fault, E_OV);
+
+            x = qrt_cell(n, r);
+        }
+        }
+
+    exec_push(vm, x);
+}
+
+/* X N.MIN n ( a b -- r ): b if b < a else a. */
+void qrt_nmin(Session *const S)
+{
+    Vm *const vm = &S->vm;
+    const QrtNum n = (QrtNum)exec_u8(vm);
+    const Cell b = exec_pop(vm), a = exec_pop(vm);
+    exec_push(vm, qrt_below(n, b, a) ? b : a);
+}
+
+/* X N.MAX n ( a b -- r ): b if b > a else a. */
+void qrt_nmax(Session *const S)
+{
+    Vm *const vm = &S->vm;
+    const QrtNum n = (QrtNum)exec_u8(vm);
+    const Cell b = exec_pop(vm), a = exec_pop(vm);
+    exec_push(vm, qrt_below(n, a, b) ? b : a);
+}
+
+/* X N.CLAMP n ( x lo hi -- r ): lo if x < lo, else hi if x > hi, else x. */
+void qrt_nclamp(Session *const S)
+{
+    Vm *const vm = &S->vm;
+    const QrtNum n = (QrtNum)exec_u8(vm);
+    const Cell hi = exec_pop(vm), lo = exec_pop(vm), x = exec_pop(vm);
+    exec_push(vm, qrt_below(n, x, lo) ? lo : qrt_below(n, hi, x) ? hi : x);
+}
+
 /* ---- files, for the fs module: each error a value, its ERR negated */
 
 /* Status st's ERR, negated; 0 none. */
@@ -1443,6 +1604,22 @@ static void qrt_fread(Session *const S)
     uint32_t got = 0;
     fault_check(&S->fault, chnl_read(c, at(chars), want, &got));
     exec_pusha(&S->vm, strg_new(&S->strg, chars, (uint16_t)got));
+}
+
+/* QX.FINTO ( n 0 cell et -- count ): the elements' bytes as they lie in memory, from the file's
+   place; the whole elements read, fewer at its end. */
+static void qrt_finto(Session *const S)
+{
+    const uint32_t et = exec_pop(&S->vm).u;
+    const Addr cell = exec_popa(&S->vm);
+    exec_pop(&S->vm); /* the reference's 0 */
+    Chan *const c = qrt_chan(S, exec_popi(&S->vm));
+    Addr data;
+    const uint32_t n = qrt_len(cell, &data);
+    const uint32_t size = arry_et_size(&S->decl, et);
+    uint32_t got = 0;
+    const Status st = n ? chnl_read(c, at(data), n * size, &got) : ST_OK;
+    exec_pushi(&S->vm, st == ST_OK ? (int32_t)(got / size) : qrt_failed(st));
 }
 
 /* QX.FWRITE ( n s -- st ). */
@@ -1568,6 +1745,10 @@ static void qrt_file(Session *const S, const QrtX op)
 
     case QX_FREAD:
         qrt_fread(S);
+        return;
+
+    case QX_FINTO:
+        qrt_finto(S);
         return;
 
     case QX_FWRITE:
@@ -1697,6 +1878,20 @@ void qrt_x(Session *const S)
         qrt_sort(S, word);
         return;
 
+    case QX_SHAPE: {
+        const Addr dst = exec_popa(vm);
+        qrt_shape(S, exec_popa(vm), dst);
+        return;
+    }
+
+    case QX_RESIZE: { /* the sizes under the cell's place */
+        const uint8_t k = (uint8_t)exec_pop(vm).u;
+        const uint32_t et = exec_pop(vm).u;
+        const Addr cell = exec_popa(vm);
+        qrt_resize(S, cell, et, k);
+        return;
+    }
+
     case QX_HAS: {
         const Cell v = exec_pop(vm);
         const uint32_t how = exec_pop(vm).u, et = how & ~QRT_RAW;
@@ -1785,6 +1980,7 @@ void qrt_x(Session *const S)
 
     case QX_FOPEN:
     case QX_FREAD:
+    case QX_FINTO:
     case QX_FWRITE:
     case QX_FSEEK:
     case QX_FSIZE:

@@ -17,6 +17,7 @@
  *   x = a op b   I.LD.V a, I.ADD.V b .. I.MOD.I16 k, I.ST.V x                  I.ADD.V.ST x a b ..
  *   x = k, x = a I.LD.U8|I16|I32 k or I.LD.V a, I.ST.V x                       I.SET.U8 .. x k, I.MOV x a
  *   p.f      R.ADDR p, FL.LD off et, p a record parameter                      P.FL.LD p off et
+ *   whole    D.FN INT|FIX, D.FN INT|FIX: the second keeps a whole number       D.FN (the first)
  *
  * A JT is a JF on the other relations: its mask's complement. A procedure's local has a frame twin
  * of each one-cell op, and of NEXT when its three cells are all the frame's (comp/select.c); it is
@@ -328,6 +329,22 @@ static uint8_t *pfield(Tail *const t)
     return replace(t, 2, op, sizeof op);
 }
 
+/* Is the op at p D.FN INT or D.FN FIX? */
+static bool whole(const uint8_t *const p)
+{
+    return *p == O_D_FN && (p[1] == DF_INT || p[1] == DF_FIX);
+}
+
+/* A whole number's INT or FIX, as int(math.floor(x)) makes: dropped. */
+static uint8_t *rounded(Tail *const t)
+{
+    if (t->n < 2 || !whole(back(t, 1)) || !whole(back(t, 0)))
+        return nullptr;
+
+    t->n--;
+    return back(t, 0) + 2;
+}
+
 uint8_t *fuse_code(const Symb *const sy, uint8_t *const start, uint8_t *const end)
 {
     static Tail t;
@@ -354,7 +371,7 @@ uint8_t *fuse_code(const Symb *const sy, uint8_t *const start, uint8_t *const en
         for (uint8_t *e;
 
              (e = next(&t)) || (e = count(&t)) || (e = literal(&t)) || (e = branch(&t)) ||
-             (e = lbranch(&t)) || (e = store(&t)) || (e = pfield(&t));)
+             (e = lbranch(&t)) || (e = store(&t)) || (e = pfield(&t)) || (e = rounded(&t));)
             out = e;
     }
 

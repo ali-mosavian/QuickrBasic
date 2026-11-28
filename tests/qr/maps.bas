@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' maps: set, read, in, remove, len, keys, for; records, enums, copies
 var ages as dict[string, int]
 ages["ada"] = 36
@@ -45,7 +45,7 @@ print names[150]; " "; len(names)
 type Pet
     name as string
     legs as int
-    tags as string[]
+    tags as list[string]
 end type
 type Zoo
     pets as dict[string, Pet]

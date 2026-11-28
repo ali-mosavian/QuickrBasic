@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a record parameter's fields read and written through its ref:
 ' narrow, wide and a held record's
 type Inner

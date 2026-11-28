@@ -15,7 +15,7 @@ A Clock's first tick() gives 0. A game's loop ticks one each frame to
 move things by the time that passed, past midnight too.
 
 ## Example
-    ' OPTION DIALECT QUICKR
+    option dialect quickr
     import time
     var c as time.Clock
     c.tick()

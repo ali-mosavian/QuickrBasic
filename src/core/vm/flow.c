@@ -120,7 +120,7 @@ uint8_t *flow_dcode(Session *const S)
     Addr stream = S->allo.cache + DCODE;
     S->link.lim = stream + DCODE_SIZE;
 
-    if (!link_xlate(&S->comp, &stream))
+    if (!link_xlate(&S->comp, &stream) || !link_texts(&S->comp))
         repl_error(S, E_OM);
 
     S->link.nmiss = 0;
@@ -611,12 +611,22 @@ static void end_call(Session *const S, const Frame *const f)
     const bool x = f->kind == FRAME_CALL_X;
 
     if (x && c.heap) {
-        for (uint32_t id = symb_first_local(sy, c.proc); id; id = symb_varx(sy, id)->nloc)
-            if (is_array(symb_var(sy, id)) && symb_is_local(sy, id)) {
-                ArrSlot *const s = (ArrSlot *)at(loc_frame_at(*symb_loc(sy, id), c.fp));
+        for (uint32_t id = symb_first_local(sy, c.proc); id; id = symb_varx(sy, id)->nloc) {
+            const Var *const v = symb_var(sy, id);
+
+            if (!symb_is_local(sy, id))
+                continue;
+
+            const Addr cell = loc_frame_at(*symb_loc(sy, id), c.fp);
+
+            if (is_array(v)) {
+                ArrSlot *const s = (ArrSlot *)at(cell);
                 arry_kill(ar, s->hdr); /* a frame's goes with the frame */
                 s->hdr = 0;
+            } else {
+                arry_kill_recs(ar, cell, 1, v->type); /* a record's fields' */
             }
+        }
 
         arry_sweep(ar);
     }

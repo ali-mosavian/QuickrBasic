@@ -1,6 +1,6 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a list's room past its length is out of range
-var a as int[]
+var a as list[int]
 a.push(1)
 a.push(2)
 a.push(3)

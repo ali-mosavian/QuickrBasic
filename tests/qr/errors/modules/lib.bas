@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 import early
 function shown() as int
     return hidden()

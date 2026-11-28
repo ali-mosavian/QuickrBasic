@@ -140,11 +140,12 @@ static const QTok *qsem_qbtok(QSem *const S, const char *const text, const uint3
     return t;
 }
 
-/* The record of QBasic TYPE td, QY_ERROR none. */
+/* The record of QBasic TYPE td, QY_ERROR none: a QBasic module's, or a Quickr record's of a
+   stage before (qr/qr.c qr_stage). */
 static QType qsem_qbrec(const QSem *const S, const uint32_t td)
 {
     for (uint32_t i = 0; i < S->prog->tys.n; i++)
-        if (S->prog->tys.at[i].foreign && S->prog->tys.at[i].td == td)
+        if (qast_record(S->prog, QY_FIRST + i) && S->prog->tys.at[i].td == td)
             return QY_FIRST + i;
 
     return QY_ERROR;
@@ -163,6 +164,9 @@ static QType qsem_qbtype(const QSem *const S, const uint32_t et)
 
     case ET_SH:
         return QY_SHORT;
+
+    case ET_BY:
+        return QY_UBYTE;
 
     case ET_R4:
         return QY_SINGLE;
@@ -212,8 +216,8 @@ static void qsem_qbrecords(QSem *const S, const uint32_t k)
     }
 }
 
-/* QBasic module k's TYPEs' fields, its procedures functions: each bound in its scope, why one
-   is not usable kept. */
+/* QBasic module k's TYPEs' fields, its procedures functions, its CONSTs consts: each bound in its
+   scope, why one is not usable kept. */
 static void qsem_qbnames(QSem *const S, const uint32_t k)
 {
     static const char unseen[] = "a TYPE no module it imports exports";
@@ -230,7 +234,11 @@ static void qsem_qbnames(QSem *const S, const uint32_t k)
 
         for (uint32_t f = 0; f < e->nfields; f++) {
             const ExpField *const ef = &e->fields[f];
-            const QType ft = qsem_qbtype(S, ef->et);
+            const QType et = qsem_qbtype(S, ef->et);
+            const QType ft = et == QY_ERROR ? et
+                             : ef->list     ? qsem_arrayof(S, et, 0, false)
+                             : ef->ndim     ? qsem_shapedof(S, et, ef->ndim, ef->counts, false)
+                                            : et;
             why = why || ft != QY_ERROR ? why : unseen;
             y->fields[f] = (QField){
                 .name = qsem_qbtok(S, ef->name, ef->len),
@@ -265,7 +273,7 @@ static void qsem_qbnames(QSem *const S, const uint32_t k)
             const ExpVal *const v = &e->params[j];
             const QTok *const name = qsem_qbtok(S, v->name, v->len);
             const QType et = qsem_qbtype(S, v->et);
-            const QType pt = v->array && et != QY_ERROR ? qsem_listof(S, et, 0) : et;
+            const QType pt = v->array && et != QY_ERROR ? qsem_arrayof(S, et, 0, false) : et;
             QVar *const var = qast_alloc(S->mem, sizeof *var);
             *var = (QVar){.name = name, .type = pt, .kind = QV_PARAM};
 
@@ -278,24 +286,47 @@ static void qsem_qbnames(QSem *const S, const uint32_t k)
         S->prog->foreign = f;
         qsem_qbbind(S, k, (QBind){.name = f->name, .fn = f, .why = why});
     }
+
+    for (uint32_t i = 0; i < x->nconsts; i++) { /* known: a const; else its CONST's variable */
+        const ExpConst *const e = &x->consts[i];
+        QVar *const v = qast_alloc(S->mem, sizeof *v);
+        *v = (QVar){
+            .name = qsem_qbtok(S, e->name, e->len),
+            .type = qsem_qbtype(S, e->et),
+            .kind = e->known ? QV_CONST : QV_LET,
+            .val = {.i = e->i},
+            .constant = e->known,
+            .shared = true,
+            .id = e->var,
+        };
+
+        qsem_qbbind(S, k, (QBind){.name = v->name, .var = v});
+    }
 }
 
-/* Each module's scope, its imports bound; a QBasic module's its exports. */
-void qsem_scopes(QSem *const S)
+/* Each module's scope, empty. */
+void qsem_newscopes(QSem *const S)
 {
     for (uint32_t k = 0; k < S->prog->nmods; k++)
         qsem_newscope(S, k);
+}
 
+/* Each module in's names: a QBasic module's its exports, another's its imports. */
+void qsem_scopes(QSem *const S, const bool *const in)
+{
     for (uint32_t k = 0; k < S->prog->nmods; k++)
-        if (S->prog->mods[k].ex)
+        if (in[k] && S->prog->mods[k].ex)
             qsem_qbrecords(S, k);
 
     for (uint32_t k = 0; k < S->prog->nmods; k++)
-        if (S->prog->mods[k].ex)
+        if (in[k] && S->prog->mods[k].ex)
             qsem_qbnames(S, k);
 
     for (uint32_t k = 0; k < S->prog->nmods; k++) {
         const QMod *const m = &S->prog->mods[k];
+
+        if (!in[k])
+            continue;
 
         for (QStmt *s = m->head; s; s = qsem_nextin(m, s)) {
             for (const QImport *im = s->kind == QS_IMPORT ? s->imps : nullptr; im; im = im->next)

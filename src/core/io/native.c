@@ -45,6 +45,18 @@ static void QX_CALL host_result_str(QxCall *const c, const char *const p, const 
     c->result.s = (QxStr){p, len};
 }
 
+static void QX_CALL host_error_why(QxCall *const c, const uint8_t error, const char *const text)
+{
+    char *const why = container_of(c, NatvCall, c)->why;
+    uint32_t n = 0;
+
+    for (; text && text[n] && n < FAULT_WHY - 1; n++)
+        why[n] = text[n];
+
+    why[n] = 0;
+    c->error = error;
+}
+
 static bool QX_CALL host_stopped(QxCall *const c)
 {
     return *container_of(c, NatvCall, c)->stop & SF_BRK;
@@ -176,6 +188,7 @@ void natv_init(Natv *const n, Fault *const f)
             .gfx_modes = host_gfx_modes,
             .gfx_mode = host_gfx_mode,
             .gfx_event = host_gfx_event,
+            .error_why = host_error_why,
         },
     };
 }

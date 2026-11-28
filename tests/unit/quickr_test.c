@@ -12,7 +12,7 @@ static uint32_t build(Session *const S, const char *const src)
 {
     char path[] = "/tmp/qb_unit_XXXXXX.bas";
     FILE *const f = fdopen(mkstemps(path, 4), "wb");
-    CHECK(f && fputs("' OPTION DIALECT QUICKR\n", f) >= 0 && fputs(src, f) >= 0);
+    CHECK(f && fputs("option dialect quickr\n", f) >= 0 && fputs(src, f) >= 0);
     fclose(f);
     session_new(S);
     snprintf(S->repl.file, sizeof S->repl.file, "%s", path);
@@ -73,9 +73,9 @@ TEST(quickr_parameter_fields_by_ref)
    assignment copied, and copies nothing. */
 TEST(quickr_assignment_moves_a_dead_source)
 {
-    CHECK(!build(S, "var a as int[]\na.push(1)\nvar b = a\nprint len(b)\n"));
+    CHECK(!build(S, "var a as list[int]\na.push(1)\nvar b = a\nprint len(b)\n"));
     CHECK(unit_calls(S, K_AMOVE) == 1 && !unit_calls(S, K_ACOPY));
-    CHECK(!build(S, "var a as int[]\na.push(1)\nvar b = a\nprint len(a); len(b)\n"));
+    CHECK(!build(S, "var a as list[int]\na.push(1)\nvar b = a\nprint len(a); len(b)\n"));
     CHECK(!unit_calls(S, K_AMOVE) && unit_calls(S, K_ACOPY) == 1);
 }
 
@@ -97,4 +97,17 @@ TEST(quickr_one_return_methods_inline)
         "print p.dot(p); b.get(); m.speed()\n"
     ));
     CHECK(!unit_ops(S, O_PCALL));
+}
+
+/* A fixed array field's element is one FX.IDX, the field's offset its operand. It took a load and
+   an I.ADD besides. */
+TEST(quickr_fixed_array_field_offset_in_its_index)
+{
+    CHECK(!build(
+        S,
+        "type Land\n    heights as int[4]\n    lights as ubyte[4]\nend type\n"
+        "var ld as Land\nvar i = 2\nld.lights[i] = 7\nprint ld.lights[i]\n"
+    ));
+    CHECK(unit_ops(S, O_FX_IDX) == 2);
+    CHECK(!unit_ops(S, O_I_ADD) && !unit_ops(S, O_I_ADD_I16) && !unit_ops(S, O_I_ADD_U8));
 }

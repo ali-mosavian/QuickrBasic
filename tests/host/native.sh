@@ -1,7 +1,7 @@
 #!/bin/sh
 # A native module (tests/ext/qxtest): each kind of argument and result through its code, its error
 # at the calling line, its start once a run, its clock finer than a millisecond, its audio stream
-# refused with no device; the same from Quickr, a list passed where it takes an array. Then the
+# refused with no device; the same from Quickr, its error's reason said, a list passed where it takes an array. Then the
 # .qbx files that cannot bind: no slice for this machine, not a .qbx, an entry its code lacks, a
 # DECLARE its code's kinds disagree with. With audio, a device (QB_AUDIO) plays its stream.
 # Usage: native.sh BASIC SLICE TAG [audio], the slice qxtest's for this machine's tag.
@@ -53,7 +53,7 @@ out=$(cd "$D" && "$B" c.bas < /dev/null 2>&1 | tr -d '\r')
 [ "$out" = "-1 " ] || { echo "native: clock: got '$out'"; exit 1; }
 
 cat > "$D/q.bas" << 'EOF'
-' OPTION DIALECT QUICKR
+option dialect quickr
 from qxtest import add, half, shout, bump, move, pt, total, items, twice, runs, fail
 print add(2, 3); " "; half(5)
 print shout("hi there")
@@ -61,14 +61,14 @@ var n as int = 41
 bump(n)
 var p = pt(7, 0)
 move(p, 3)
-var a as single[]
-a.push(1.5)
-a.push(2)
-a.push(3)
+var a = single[3]
+a[0] = 1.5
+a[1] = 2
+a[2] = 3
 print n; " "; p.x; " "; total(a); " "; items(a); " "; twice(21); " "; runs()
 fail(5)
 EOF
-want=$(printf '5 2.5\nHI THERE\n42 10 6.5 3 42 1\nq.bas:14: Illegal function call\n  fail(5)')
+want=$(printf '5 2.5\nHI THERE\n42 10 6.5 3 42 1\nq.bas:14: Illegal function call\n  fail(5)\nqxtest was asked to fail')
 out=$(cd "$D" && "$B" q.bas < /dev/null 2>&1 | tr -d '\r') || true
 [ "$out" = "$want" ] || { echo "native: from Quickr: got '$out'"; exit 1; }
 

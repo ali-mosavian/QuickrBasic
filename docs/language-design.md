@@ -12,7 +12,7 @@ the note says what.
 ## A program
 
 ```basic
-' OPTION DIALECT QUICKR
+option dialect quickr
 from keys import Key
 from math import Vec
 import keys
@@ -32,7 +32,7 @@ type Ball
 end type
 
 let size = Vec(320, 200)
-var balls as Ball[]
+var balls as list[Ball]
 for i = 1 to 10
     let vel = Vec(random.real(-80, 80), random.real(-80, 80))
     balls.push(Ball(at: Vec(160, 100), vel: vel))
@@ -50,9 +50,10 @@ wend
 
 ## Choosing the dialect
 
-- Files are `.bas` in both dialects. A Quickr file's first line is `' OPTION DIALECT QUICKR`
-  (case aside), a comment to QBasic; a file without it is QBasic's. The line is the file's line 1,
-  required in every Quickr file, modules too. Nothing else is guessed from a file's contents.
+- Files are `.bas` in both dialects. A Quickr file's first statement is `option dialect quickr`
+  (case aside): a statement, not a comment. Only blank lines and comments go before it. A file
+  without it is QBasic's. It is required in every Quickr file, modules too. Nothing else is guessed
+  from a file's contents.
 - File > New asks which, and a Quickr program starts with that line, which the editor keeps as it
   is. The status bar shows the program's dialect. `basic` runs either.
 - A file of either dialect imports modules of the other: see [Interop](#interop).
@@ -104,8 +105,9 @@ that is not a loop.
 | `ubyte` `ushort` `uint` `ulong` | the same widths, unsigned |
 | `single` `double` | 32-bit and 64-bit floating point |
 | `string` | bytes, immutable; `s[i]` is a `ubyte`, `s[1..3]` a slice |
-| `T[]` | a list: grows, zero-based |
-| `T[n]` | a fixed array of `n`, a constant; inline in its record |
+| `T[]` | an array: zero-based, made by `T[n]` or `T[w, h]`, `n` any `int`; any array's reference |
+| `T[n]`, `T[w, h]` | a fixed array, its sizes constants; inline in its record |
+| `list[T]` | a list: grows, zero-based |
 | `dict[K, V]` | a map from `K` to `V` |
 | `(T, U)` | a tuple |
 | `T or none` | a `T` or `none` |
@@ -115,12 +117,12 @@ that is not a loop.
 | an `enum`'s name | named values, each with or without data |
 | `Name[T]` | a generic record with its type given |
 
-- In a type, `or` binds last: `int[] or none` is a list or none, `(int or none)[]` a list of
-  optionals, and `function(int) as int or none` a function whose result is optional. A type has
+- In a type, `or` binds last: `list[int] or none` is a list or none, `list[int or none]` a list
+  of optionals, and `function(int) as int or none` a function whose result is optional. A type has
   one `or`.
-- Inside `[ ]` after a type's name, a constant makes a fixed array and a type fills a generic.
+- Inside `[ ]` after a type's name, constants make a fixed array and a type fills a generic.
   Only a generic type takes a type.
-- `T[][]` is a list of lists; any type can be an element or a dict's value.
+- `list[list[T]]` is a list of lists; any type can be an element or a dict's value.
 - `int` is the native int, 32 bits on every target. Every size is the same on every target, so a
   record laid out for a file reads the same everywhere.
 - An operator takes two values of one type and gives that type: `byte + byte` is a `byte`.
@@ -298,7 +300,8 @@ let sign = 1 if x >= 0 else -1
   `a[..n]`, `a[n..]`), `in`'s and a chain's source. It has no step and counts up; `(a..b).rev()`
   counts down. A range may hold any `int`s: `(0..low).rev()` with `low` an `int`'s first value
   is empty, and `take`, `skip` and `zip` over a range wider than an `int` count right.
-- A slice is a new value: a string's a new string, a list's a new list of copies. Its ends are
+- A slice is a new value: a string's a new string, a list's a new list and a `T[]`'s a new `T[]`
+  of copies. Its ends are
   clamped to the elements, so `s[..100]` of a shorter `s` is all of it. `s[i]` past the end is a
   runtime error, Subscript out of range.
 
@@ -474,7 +477,7 @@ end function
 
 ```basic
 type Stack[T]
-    items as T[]
+    items as list[T]
 
     fn push(mut self, x as T)
         self.items.push(x)
@@ -499,7 +502,7 @@ s.push(3)
   wherever it is written. A copy's method is checked and compiled when it is first called, so a
   `Stack[Vec]` holds even if `sorted()` needs `<` of a `Vec`, until it is called. An error in a
   copy is named for it: `can't compare a Vec with a Vec in Box[Vec]`.
-- A type that holds itself with ever new types, `more as Grow[T[]][]`, is an error past 64
+- A type that holds itself with ever new types, `more as list[Grow[list[T]]]`, is an error past 64
   copies.
 - **In the VM**, each copy is the type's block parsed again with `T` bound, its methods compiled
   onto copies of its lines, as a generic function's are. A `Stack[int]`'s fields and methods
@@ -601,7 +604,7 @@ end fn).collect()
   code address.
 - A function taking functions is compiled once for each lambda or named function passed to it,
   as a generic is for each type. A lambda's result may type the generic: `map_all(xs, fn(x)
-  f"{x}")` is a `string[]`.
+  f"{x}")` is a `list[string]`.
 - A lambda can't call another lambda its caller was given: it passes it on, `apply(f, x)`.
 - **In the VM**, a one-line lambda's body is checked again and inlined at each call of its
   parameter. A block lambda is a hidden function: each call of its parameter calls it. A
@@ -649,12 +652,32 @@ next
 - The link threads every jump and line end past what only passes control on: a line with no
   statement, a line that only jumps. A `yield` and its loop's `next` cost no op.
 
-### Lists and dicts
+### Arrays, lists and dicts
 
+```basic
+var g as int[]        ' empty
+g = int[w, h]         ' w * h elements, each 0
+g[x, y] = 1           ' the first subscript the fastest
+g.resize(w, h + 1)    ' its elements kept
+let s = g.shape()     ' an int[]: s[0] is w, s[1] is h + 1
+```
+
+- An array's size is set where it is made: `T[n]`, `T[w, h]`, or a fixed array's type. `len(a)`
+  is its elements' count, `a.shape()` each dimension's size. `a[i]` of one of more dimensions is
+  its `i`-th element, flat, as `for` reads it.
+- `a.resize(n)` or `a.resize(w, h)` changes a `T[]`'s size: the elements kept, new ones empty,
+  those past it cut. A `T[]` of values with `drop` can't resize. A fixed array's size never
+  changes.
+- A `T[]` parameter takes any array of its elements: a `T[]`, a `T[n]`, a `T[w, h]`. The callee
+  reads each the same; a `resize()` of a fixed one is a runtime error, Duplicate definition.
+  A `T[n]` parameter takes a `T[n]` alone, and a list is no array.
+- **In the VM**, an array is passed by its descriptor, the cell QBasic passes an array by: a
+  `T[]`'s own, a fixed array's a field cell made for the call. Quickr's arrays are from 0, so one
+  subscript reaches each element: the header's fast is the elements' count.
 - A list's methods: `a.push(x)`, `a.pop()` (the last, taken), `a.insert(i, x)`, `a.remove(i)`,
   `a.swap(i, j)`, `a.sort()` and `a.sort(fn(x, y) x < y)`. `len(a)` is its length and `x in a`
   searches it. `a[i]` outside its elements is a runtime error, Subscript out of range.
-- A fixed array has `swap` and `sort`; its size never changes.
+- An array has `swap` and `sort`.
 - `a.sort(fn(x, y) …)` orders by a "less than" lambda and is stable. `a.sort()` orders numbers
   and strings by value.
 - A dict's methods: `d.get(k)` gives a `V or none`, a copy of the value; when `V` is a `T or
@@ -722,7 +745,7 @@ next
 ### Ownership
 
 ```basic
-var a as int[]
+var a as list[int]
 a.push(1)
 var b = a           ' a copy: a is used below
 b.push(2)
@@ -873,7 +896,7 @@ end function
 
 - A file is a module and a folder is a package, found as QBasic's `IMPORT` finds one (the main
   file's folder, each folder of `BASICLIB`, then `lib/` beside the interpreter), as a `.bas`.
-  One whose first line is not Quickr's is a QBasic module: see [Interop](#interop).
+  One whose first statement is not Quickr's mark is a QBasic module: see [Interop](#interop).
 - `import m`, `import m as n`, `import a.b` (then `a.b.f()`), `from a.b import X, Y as Z`,
   `from pkg import m` (a package's module) and relative `from .feet import Land`: `.` is the
   importing file's folder, `..` its parent. An import goes at the top level.
@@ -897,27 +920,40 @@ end function
 - A Quickr file imports a QBasic module as a Quickr one: `import shapes`, then `shapes.area(2, 3)`,
   or `from shapes import area`. Its SUBs and FUNCTIONs are functions, its TYPEs records; not its
   PRIVATE ones.
+- A QBasic CONST is a const when its value is a whole number known as declared. Any other is a
+  `let` its module's code sets: a SINGLE, a DOUBLE or a string reads as that code left it.
 - A QBasic name matches case aside and without its suffix: `FUNCTION Area!(w!)` is `shapes.area`.
   Two that match one name are an error where it is used.
 - Types: INTEGER and LONG are `int`, both 32 bits; SHORT is `short`, SINGLE `single`, DOUBLE
-  `double`, STRING `string`, a TYPE a record of the same fields.
+  `double`, STRING `string`, BYTE `ubyte` in a field or an array, a TYPE a record of the same
+  fields. A TYPE's array field from 0 is a
+  fixed array, `heights(7) AS INTEGER` an `int[8]`, `m(3, 1) AS LONG` an `int[4, 2]`; a dynamic
+  one, `tags() AS STRING`, a `string[]`.
 - A parameter by reference takes a `var`'s place, and the `var` sees the change. Any other
   argument, a `let`'s too, goes as a copy. A BYVAL parameter is by value.
-- An array parameter takes a list by reference. QBasic sees the list's length as its bounds, from 0,
-  and a REDIM of it changes the list.
+- An array parameter takes any array by its descriptor: QBasic sees its bounds, from 0, in each
+  dimension, and a REDIM of a `T[]` changes it. A fixed array's REDIM is Duplicate definition.
 - What Quickr has no equal for is an error where it is used, naming why, never at the import: a
-  fixed-length string, a BYTE, a TYPE's array field.
+  fixed-length string, a BYTE parameter or result that is not an array, an array field not from 0.
 - A native module, a `.qbx`, is imported as a QBasic one: `from synth import note`.
 - A QBasic module's code runs at its first import, as in QBasic.
 - A QBasic file imports a Quickr module: `IMPORT shapes`, then `shapes.area(2, 3)`, or `FROM
-  shapes IMPORT area`. Its functions are SUBs and FUNCTIONs, its records TYPEs, the private ones
-  aside. Its methods are not seen.
-- Types back: `int` is LONG, `short` SHORT, `single`, `double` and `string` the same, `bool`
-  INTEGER, true -1 in both, a record a TYPE. A `mut` parameter is by reference, any other by value.
+  shapes IMPORT area`. Its functions are SUBs and FUNCTIONs, its records TYPEs, its consts CONSTs,
+  the private ones aside. Its methods are not seen. A string const longer than 255 bytes is not
+  exported.
+- Types back: `int` is LONG, `short` SHORT, `ubyte` BYTE in a field or an array, `single`,
+  `double` and `string` the same, `bool` INTEGER, true -1 in both, a record a TYPE, its arrays
+  array fields. A `mut` parameter is by reference, any other by value. A list has no QBasic
+  equal.
+- A `T[]` parameter takes an array from 0 in each dimension, by reference: a `mut` one's
+  `resize()` changes its bounds, a fixed array field's is Duplicate definition. Any other array
+  is Subscript out of range where passed.
 - Any other type in a function's parameters or result, or in a record's fields, makes it an error
   where QBasic uses it.
 - QBasic matches names case aside: two exports that differ only so are an error at the IMPORT.
-- A module of the other dialect imports only modules of its own dialect.
+- Modules of either dialect import modules of either, in a program of either: the dialects cross
+  any number of times on a path. A module is checked once every module it imports is, so a record
+  crosses both ways.
 - A runtime error names the file and line of the code it is in, either dialect's. QBasic's `ON
   ERROR` catches one raised in the Quickr code it calls.
 - **In the VM**, a call across is a call within one dialect: the same PCALL, records and strings,
@@ -1010,7 +1046,9 @@ dicts and iterables. Everything else is in a module.
   double) as double`. A native function has no body; its entry, by its name, is in
   `src/core/qr/qnat.c`. A call compiles to the entry's code, which is what QBasic's statement
   compiles to, so a library call costs what the built-in does. A native takes and gives numbers,
-  bools and strings, by value. It is a top-level function, never a method; a method calls it.
+  bools and strings, by value. It is a top-level function, never a method; a method calls it. A
+  generic native, `native function abs[T](x as T) as T`, has an entry that takes any number: its
+  op is told the number's type.
 - `math.sqrt` against `SQR`, and `text.find` against `INSTR`, run the same ops as QBasic (benches
   sqrt and find); host instructions are 4% and 5% more.
 
@@ -1025,7 +1063,7 @@ dicts and iterables. Everything else is in a module.
 
 `math`:
 
-- `abs`, `min`, `max` and `clamp` are generic functions.
+- Every function is a VM op. `abs`, `min`, `max` and `clamp` are generic natives, of any number.
 - `Vec` is `x` and `y`, `double`s. It has `+`, `-` and `=`, `*` and `/` by a `double`, `double *
   Vec`, unary `-`, and the methods `dot(b)`, `length()` and `text()`.
 
@@ -1039,10 +1077,13 @@ dicts and iterables. Everything else is in a module.
 
 - `File.open(path, mode = "r") as File or Error`: mode `"r"` to read, `"w"` to write it anew,
   `"a"` to add to its end, `"rw"` both.
-- `f.read(count) as string` gives `count` bytes at most. `f.write(s)` and `f.seek(at)` give a
+- `f.read(count) as string` gives `count` bytes at most. `f.read_into(a) as int or Error` fills
+  `a`, an array of numbers, with its elements' bytes as they lie in memory (little-endian), as
+  BLOAD does; it gives the whole elements read, fewer at the end. `f.write(s)` and `f.seek(at)` give a
   `bool or Error`. `f.size() as int`. `f.close()` closes it sooner than its `drop` does.
 - A `File`'s number is private. A file's error is a value, its `code` QBasic's ERR.
-- `read_text(path) as string or Error` reads at most 32767 bytes, a string's most.
+- `read_text(path) as string or Error` reads the whole file; past 32767 bytes, a string's most,
+  an Error: String too long.
   `write_text(path, s)`. `list(pattern = "*.*")` gives the platform's DOS names, upper case on
   the host.
 

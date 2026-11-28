@@ -91,7 +91,7 @@ CORE_OBJ := $(CORE_C:src/%.c=$(B)/obj/%.obj) $(QBRT_DOS_C:%.c=$(B)/qbrt/%.obj) $
 BASIC_OBJ := $(CORE_OBJ) $(B)/obj/app/basic32.obj
 IDE_OBJ := $(CORE_OBJ) $(UI_C:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
 DOS_DRIVERS := $(B)/lib/drivers/VOODOO1.DRV $(B)/lib/drivers/VOODOO2.DRV $(B)/lib/drivers/VOODOO3.DRV
-DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP $(B)/lib/gfx.qbx $(DOS_DRIVERS)
+DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP $(B)/lib/gfx.qbx $(B)/lib/.stdlib $(DOS_DRIVERS)
 # the release: the programs by their DOS names, with the games (src/plat/wasm/web/demos)
 DOS_GAMES := $(addprefix src/plat/wasm/web/demos/,GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT)
 # CHARLIE.BAS imports its package and the engine, the barkley and engine folders beside it
@@ -139,7 +139,7 @@ dos-zip: $(DOS_EXE) $(DOS_GAMES) $(DOS_MODULES)
 	cp $(B)/DOS32A.EXE $(B)/BASIC.HLP $(DOS_GAMES) $(GFX_DEMOS) $(B)/release/
 	rm -rf $(B)/release/barkley $(B)/release/engine $(B)/release/lib
 	mkdir -p $(B)/release/lib/drivers
-	cp $(B)/lib/gfx.qbx $(B)/release/lib/
+	cp $(B)/lib/gfx.qbx $(STDLIB) $(B)/release/lib/
 	cp $(DOS_DRIVERS) $(B)/release/lib/drivers/
 	cp -R src/plat/wasm/web/demos/barkley $(B)/release/barkley
 	cp -R src/plat/wasm/web/demos/engine $(B)/release/engine
@@ -149,7 +149,7 @@ dos-zip: $(DOS_EXE) $(DOS_GAMES) $(DOS_MODULES)
 
 # ---- The tests ----
 
-TOOLS_TEST := tools/cfmt_test.py tools/basic_src_test.py tools/libcalls_test.py tools/gas2coff_test.py tools/conformance_test.py tools/mkhelp_test.py tools/golden_test.py tools/qbx_test.py tools/fillers_test.py tools/reciprocal_test.py tools/mac_test_test.py tools/gfx_test_test.py tools/bench_test.py
+TOOLS_TEST := tools/cfmt_test.py tools/basic_src_test.py tools/libcalls_test.py tools/gas2coff_test.py tools/conformance_test.py tools/mkhelp_test.py tools/golden_test.py tools/qbx_test.py tools/fillers_test.py tools/reciprocal_test.py tools/mac_test_test.py tools/gfx_test_test.py tools/qr_test_test.py tools/dosship_test.py tools/bench_test.py
 test: $(DOS_EXE) | $(DOSBOX_BIN)
 	sh tests/gen/dfa.sh
 	sh tests/gen/messages.sh

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' generic records: their errors; a method is checked for an instance once called
 type Vec
     x as int
@@ -31,7 +31,7 @@ type Twice[T, T]
 end type
 var tw as Twice[int, int]
 type Grow[T]
-    more as Grow[T[]][]
+    more as list[Grow[list[T]]]
 end type
 var g as Grow[int]
 type Self[T]

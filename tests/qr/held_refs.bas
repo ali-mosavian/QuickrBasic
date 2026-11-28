@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' Addresses into the heap on the stack while a call later in
 ' the statement sweeps: what they point at moved. Stale values:
 ' a mut element, a mut field, a field stored to, a held list's
@@ -14,33 +14,33 @@ type P
 end type
 
 type Box
-    items as int[]
+    items as list[int]
 end type
 
-var spacers as int[][]
+var spacers as list[list[int]]
 for i = 1 to 8
-    var s as int[]
+    var s as list[int]
     for k = 1 to 50
         s.push(k)
     next
     spacers.push(s)
 next
-var xs as int[]
+var xs as list[int]
 xs.push(10)
 xs.push(20)
-var ps as P[]
+var ps as list[P]
 ps.push(P(1, 2))
 ps.push(P(3, 4))
 var bx as Box
 bx.items.push(5)
 bx.items.push(6)
-var boxes as Box[]
+var boxes as list[Box]
 boxes.push(bx)
 var turn = 0
 
 ' A spacer before the lists emptied, the heap swept: they move.
 function churn(n as int) as int
-    var gone as int[]
+    var gone as list[int]
     spacers[turn] = gone
     turn += 1
     return n

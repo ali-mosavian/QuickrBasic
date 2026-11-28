@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' fs: whole files, a File's read, write and seek, errors as values
 import fs
 from fs import File
@@ -27,7 +27,16 @@ function closed(path as string) as bool or Error
 end function
 print unclosed("libfs.drp") or else false; " "; fs.read_text("libfs.drp") or else ""
 print closed("libfs.drp") or else false; " "; fs.read_text("libfs.drp") or else ""
+' sorted: the directory's order was Linux's, LIBFS.DRP first
 let names = fs.list("libfs.*")
 print len(names); " "; text.upper(names[0])
 let bad = File.open("x.txt", "q")
 print bad.message
+' a file past a string's length: an Error, not the file cut short
+let big = File.open("libfs.big", "w")
+if big is not Error then
+    let half = f"{0:>30000}"
+    print big.write(half) is Error; " "; big.write(half) is Error
+end if
+let whole = fs.read_text("libfs.big")
+print whole is Error; " "; whole.message

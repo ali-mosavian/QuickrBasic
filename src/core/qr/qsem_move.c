@@ -172,8 +172,42 @@ void qsem_lends(QSem *const S)
     S->fn = nullptr;
 }
 
-/* Call e's mut arguments each its only way to its var: no other argument the same var, but one
-   passed by value, a copy then. A lambda's capture is lent mut when the lambda changes it. */
+enum { QSEM_DEPTH = 32 }; /* a place's fields and elements, deeper ones all one place */
+
+/* Do places a and b of one var overlap: a field path from the var a prefix of the other's? An
+   element is any of its array's, so past one they overlap. */
+static bool qsem_overlap(const QExpr *a, const QExpr *b)
+{
+    const QExpr *pa[QSEM_DEPTH], *pb[QSEM_DEPTH];
+    uint32_t na = 0, nb = 0;
+
+    for (; a->kind == QE_FIELD || a->kind == QE_INDEX; a = a->a)
+        if (na < QSEM_DEPTH)
+            pa[na++] = a;
+        else
+            return true;
+
+    for (; b->kind == QE_FIELD || b->kind == QE_INDEX; b = b->a)
+        if (nb < QSEM_DEPTH)
+            pb[nb++] = b;
+        else
+            return true;
+
+    while (na && nb) {
+        const QExpr *const x = pa[--na], *const y = pb[--nb];
+
+        if (x->kind != QE_FIELD || y->kind != QE_FIELD)
+            return true;
+        if (x->field != y->field)
+            return false;
+    }
+
+    return true;
+}
+
+/* Call e's mut arguments each its only way to its place: no other argument the same var's place
+   or one around or in it (a disjoint field is another), but one passed by value, a copy then. A
+   lambda's capture is lent mut when the lambda changes it. */
 void qsem_lent(QSem *const S, const QExpr *const e, const QFn *const f)
 {
     for (uint32_t k = 0; k < f->npar; k++) {
@@ -182,10 +216,12 @@ void qsem_lent(QSem *const S, const QExpr *const e, const QFn *const f)
         const bool excl = p->hidden ? p->var->kind == QV_MUT : p->mut;
         const QVar *const v = excl && m->type != QY_ERROR ? qsem_root(m) : nullptr;
 
-        for (uint32_t j = 0; v && j < f->npar; j++)
-            if (j != k && qsem_root(e->argv[j]) == v && qsem_byvalue(S, e, j))
+        for (uint32_t j = 0; v && j < f->npar; j++) {
+            const bool same = j != k && qsem_root(e->argv[j]) == v && qsem_overlap(m, e->argv[j]);
+
+            if (same && qsem_byvalue(S, e, j))
                 e->argv[j]->byval = true;
-            else if (j != k && qsem_root(e->argv[j]) == v)
+            else if (same)
                 qsem_say(
                     S,
                     e->argv[j]->tok,
@@ -194,6 +230,7 @@ void qsem_lent(QSem *const S, const QExpr *const e, const QFn *const f)
                               : " is lent mut in this call",
                     nullptr
                 );
+        }
     }
 }
 
@@ -377,7 +414,7 @@ QExpr *qsem_owned(QSem *const S, QExpr *const e, const bool returned)
     S->moves[S->nmoves++] = (QMove){
         .e = e,
         .var = v,
-        .at = qsem_at(S, e->tok),
+        .at = qsem_useat(S, e->tok),
         .loop = S->nloops ? S->loops[S->nloops - 1] : UINT32_MAX,
     };
 

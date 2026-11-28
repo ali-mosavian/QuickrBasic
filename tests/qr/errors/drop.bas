@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' drop: its errors
 type Res
     name as string
@@ -20,7 +20,7 @@ enum Mode
     end fn
 end enum
 type Node
-    kids as Node[]
+    kids as list[Node]
     r as Res
 end type
 enum Shape

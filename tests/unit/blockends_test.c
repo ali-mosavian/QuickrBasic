@@ -5,7 +5,7 @@
 #include "ui/uimain.h"
 #include "unit.h"
 
-#define DIALECT "' OPTION DIALECT QUICKR\n"
+#define DIALECT "option dialect quickr\n"
 
 static const char *const files[] = {"main.bas", "gfx.bas", nullptr};
 

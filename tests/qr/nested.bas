@@ -1,13 +1,13 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' lists of lists, lists as dict values: each its own, copied whole
 type Board
     name as string
-    cells as string[][]
+    cells as list[list[string]]
 end type
-function make(n as int) as string[][]
-    var out as string[][]
+function make(n as int) as list[list[string]]
+    var out as list[list[string]]
     for i in 0..n
-        var r as string[]
+        var r as list[string]
         for j in 0..n
             r.push(f"{i}{j}")
         next
@@ -15,7 +15,7 @@ function make(n as int) as string[][]
     next
     return out
 end function
-function total(g as string[][]) as int
+function total(g as list[list[string]]) as int
     var n = 0
     for r in g
         for s in r
@@ -24,17 +24,17 @@ function total(g as string[][]) as int
     next
     return n
 end function
-function grow(mut g as string[][])
+function grow(mut g as list[list[string]])
     for mut r in g
         r.push("x")
     next
-    var extra as string[]
+    var extra as list[string]
     extra.push("y")
     g.push(extra)
 end function
-var grid as int[][]
+var grid as list[list[int]]
 for i in 0..4
-    var row as int[]
+    var row as list[int]
     for j in 0..i
         row.push(i * 10 + j)
     next
@@ -72,21 +72,21 @@ for i in 0..500
     b.cells[0][1] = f"{i}{len(junk)}"
 next
 print b.cells[0][1]; " "; total(b.cells)
-var deep as int[][][]
+var deep as list[list[list[int]]]
 for i in 0..3
-    var mid as int[][]
+    var mid as list[list[int]]
     for j in 0..3
-        var inner as int[]
+        var inner as list[int]
         inner.push(i * 100 + j)
         mid.push(inner)
     next
     deep.push(mid)
 next
 print deep[2][1][0]; " "; len(deep[0])
-var d as dict[string, int[]]
+var d as dict[string, list[int]]
 d["a"] = grid[0]
 d["a"].push(3)
-var none_yet as int[]
+var none_yet as list[int]
 d["b"] = none_yet
 d["b"].push(4)
 print len(d["a"]); " "; len(d["b"]); " "; len(grid[0])

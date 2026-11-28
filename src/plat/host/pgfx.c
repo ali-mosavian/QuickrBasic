@@ -14,7 +14,8 @@ static struct {
     uint16_t w, h;
     uint8_t depth, bytes; /* bytes a pixel */
     bool showing, vsync;
-    bool full; /* shown full screen */
+    bool full;   /* shown full screen */
+    bool hidden; /* the text screen shown in its place */
     uint32_t palette[256];
 } screen;
 
@@ -121,8 +122,26 @@ void pgfx_close(void)
     pmem_free(screen.page);
     pmem_free(screen.shown);
     screen.page = screen.shown = nullptr;
-    screen.showing = screen.vsync = false;
+    screen.showing = screen.vsync = screen.hidden = false;
 }
+
+/* The screen hidden or shown again: false, it was already. */
+static bool hidden(const bool hide)
+{
+    if (!(screen.page || screen.playing) || screen.hidden == hide)
+        return false;
+
+    screen.hidden = hide;
+
+    if (screen.playing)
+        screen.playing->hide(hide);
+
+    return true;
+}
+
+bool pgfx_hide(void) { return hidden(true); }
+
+bool pgfx_unhide(void) { return hidden(false); }
 
 uint8_t *pgfx_page(uint32_t *const pitch)
 {
@@ -151,7 +170,7 @@ float pgfx_hz(void) { return (float)atomic_load(&host_display()->millihz) / MILL
 
 bool pgfx_shown(PgfxFrame *const f)
 {
-    if (!screen.showing)
+    if (!screen.showing || screen.hidden)
         return false;
 
     *f = (PgfxFrame){screen.shown, screen.w, screen.h, screen.depth, screen.palette};

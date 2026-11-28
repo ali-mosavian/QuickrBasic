@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' what can't change: a let, a const, a parameter, a loop's counter;
 ' a call writes no mut
 let a = 1
@@ -28,3 +28,12 @@ h(pt, pt)
 var d as double = 1
 g(d)
 g(mut v)
+type Two
+    a as Pt
+    b as Pt
+end type
+function m(mut t as Two, a as Pt)
+end function
+var two as Two
+h(two.a, two.a)
+m(two, two.b)

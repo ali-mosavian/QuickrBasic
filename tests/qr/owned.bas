@@ -1,8 +1,8 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' records holding lists: built, copied, in lists, returned
 type Bag
     name as string
-    items as int[]
+    items as list[int]
 end type
 
 function make(n as int) as Bag
@@ -14,7 +14,7 @@ function make(n as int) as Bag
     return b
 end function
 
-function sum(a as int[]) as int
+function sum(a as list[int]) as int
     var t = 0
     for x in a
         t += x
@@ -23,7 +23,7 @@ function sum(a as int[]) as int
 end function
 
 function count(n as int) as int
-    var l as int[]
+    var l as list[int]
     for i in 0..n
         l.push(i)
     next
@@ -36,7 +36,7 @@ print b.name; " "; len(b.items); " "; sum(b.items)
 var c = b
 c.items.push(100)
 print len(b.items); " "; len(c.items); " "; sum(c.items)
-var bags as Bag[]
+var bags as list[Bag]
 bags.push(make(2))
 bags.push(make(3))
 print bags[1].name; " "; sum(bags[1].items); " "; len(bags[0].items)
@@ -44,8 +44,8 @@ bags[0].items.push(7)
 print sum(bags[0].items)
 bags.remove(0)
 print len(bags); " "; bags[0].name
-function rev(a as int[]) as int[]
-    var r as int[]
+function rev(a as list[int]) as list[int]
+    var r as list[int]
     for i in 0..len(a)
         r.push(a[len(a) - 1 - i])
     next

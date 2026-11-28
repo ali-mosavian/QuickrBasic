@@ -655,6 +655,42 @@ static void qlex_line(QLex *const L, const uint32_t i)
     }
 }
 
+/* text's len bytes past at's spaces: the first not one, len none. */
+static uint32_t qlex_past_spaces(const char *const text, const uint32_t len, uint32_t at)
+{
+    while (at < len && is_blank((uint8_t)text[at]))
+        at++;
+
+    return at;
+}
+
+/* Does text, len bytes, end at at: a file's line's CR aside? */
+static bool qlex_ended(const char *const text, const uint32_t len, const uint32_t at)
+{
+    return at == len || (at + 1 == len && text[at] == '\r');
+}
+
+bool qlex_mark(const char *const text, const uint32_t len)
+{
+    const uint32_t n = sizeof QLEX_MARK - 1;
+    const uint32_t from = qlex_past_spaces(text, len, 0);
+
+    if (len - from < n)
+        return false;
+
+    for (uint32_t i = 0; i < n; i++)
+        if (upcase((uint8_t)text[from + i]) != upcase((uint8_t)QLEX_MARK[i]))
+            return false;
+
+    return qlex_ended(text, len, qlex_past_spaces(text, len, from + n));
+}
+
+bool qlex_blank(const char *const text, const uint32_t len)
+{
+    const uint32_t at = qlex_past_spaces(text, len, 0);
+    return qlex_ended(text, len, at) || text[at] == '\'';
+}
+
 void qlex_source(QSrc *const src, const uint32_t first, QMem *const m, QErrs *const e)
 {
     QLex L = {
@@ -666,9 +702,17 @@ void qlex_source(QSrc *const src, const uint32_t first, QMem *const m, QErrs *co
 
     src->toks = nullptr;
     src->ntoks = 0;
+    bool begun = false; /* a statement lexed: the mark is no more one */
 
-    for (uint32_t i = first; i < src->nlines; i++)
+    for (uint32_t i = first; i < src->nlines; i++) {
+        const QLine *const ln = &src->lines[i];
+
+        if (!begun && qlex_mark(ln->text, ln->len))
+            continue;
+
+        begun = begun || !qlex_blank(ln->text, ln->len);
         qlex_line(&L, i);
+    }
 
     if (src->ntoks && src->toks[src->ntoks - 1].kind != QK_NL) /* a bracket left open */
         qlex_tok(&L, QK_NL, L.at);

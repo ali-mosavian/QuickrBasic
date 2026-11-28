@@ -18,6 +18,7 @@ enum : Status { ST_OK = 0xFFFF };
 static inline Status st_qb(const QbErr qb) { return (Status)(qb << 8 | E_USR); }
 
 enum : uint32_t { FAULT_KEEP = UINT32_MAX }; /* line: the current one; at: no caret */
+enum : uint32_t { FAULT_WHY = 80 };          /* a reason's bytes, its 0 too */
 
 typedef struct {
     uint8_t code, dg;
@@ -26,6 +27,7 @@ typedef struct {
     uint32_t len;
     uint16_t user;     /* E_USR's QBasic error number (QbErr) */
     const uint8_t *op; /* the ERR op (vm/exec.h's ErrOp) it is, nullptr none */
+    const char *why;   /* said after its message, 0-ended, kept past the raise: nullptr none */
 } Failure;
 
 /* fault_push's place: setjmp(jb) is 0 there, the error thrown's code after. */

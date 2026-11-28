@@ -1,17 +1,503 @@
-#!/usr/bin/env python3
-"""bench_test.py: demos --card --profile dropped --set, so SSTV2_CMDFIFO=1 profiled the Voodoo 2's direct
-writes as if they were its command FIFO's. A driver's function named as one of the program's, tdfx.c's drawn as
-player.c's, read the program's source lines by line."""
+"""bench_test.py: bench.py's native cost grows with the work and repeats. Counted from process start,
+the loader's ~45M instructions swamped it; under Rosetta the address layout moved a count by a third.
+Its DOS profile names static functions: the link map has globals alone, and the lexer's statics
+read as lexr_line's, 19% of a load."""
 
 import argparse
+import io
+import os
+import random
+import re
 import shutil
+import subprocess
 import sys
 import tempfile
+import unittest.mock
 from pathlib import Path
 from types import SimpleNamespace
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench
+
+
+def loop(n: int) -> str:
+    return f"FOR i& = 1 TO {n}: a& = a& + 1: NEXT: PRINT a&"
+
+
+def dos_by_its_own_rules() -> None:
+    """A rev's DOS executables made by its own Makefile: ours, its source list a newer tree's, left main's
+    gfxdev.c without the pixmem.c it called, and its link failed."""
+    calls: list[list[str]] = []
+
+    def run(cmd: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with tempfile.TemporaryDirectory() as d, unittest.mock.patch.object(bench.subprocess, "run", run):
+        root = Path(d)
+        for src in bench.INSTRUMENT_SRC:
+            (root / src).parent.mkdir(parents=True, exist_ok=True)
+        bench.Build(root).make(True)
+    ours = str(bench.ROOT / "Makefile")
+    dos = [c for c in calls if "all" in c]
+    assert dos and all(ours not in c for c in dos), calls
+    assert all(ours in c for c in calls if "build/host/basic" in c), calls
+
+
+def profile_cycles() -> None:
+    """The profile's cycles: virtual time at dosrun's rate. Instructions alone count a rep as one,
+    however many bytes it moves."""
+    assert bench.cycles_line(1000) == "20,000,000 cycles: 2.00 s at 10k cycles/ms", bench.cycles_line(1000)
+
+
+def profile_map() -> None:
+    """A static's map entry: its module's base plus its object offset, between the globals around it."""
+    lexer = bench.ROOT / "build/c/obj/core/comp/lexer.obj"
+    statics = [(off, n) for off, k, n in bench.nm(lexer) if k == "t" and n.startswith("_lexr_")]
+    assert statics, "lexer.obj has no static lexr_ function"
+    with tempfile.TemporaryDirectory() as d:
+        listing = bench.profiled(bench.build(".", True), Path(d)).with_suffix(".map").read_text()
+    at = {n: int(a, 16) for a, n in re.findall(r"^0001:([0-9a-f]{8})\*?\s+(\S+)$", listing, re.M)}
+    line = next(off for off, k, n in bench.nm(lexer) if n == "_lexr_line")
+    for off, n in statics:
+        assert at.get(n) == at["_lexr_line"] - line + off, (n, at.get(n))
+
+
+def profile_map_slice() -> None:
+    """gfx's slice's statics are named too, from a directory behind a symlink as tempfile's is on the Mac: the map
+    gives each object's path resolved, and every filler read as fill_blend, the global before them."""
+    fill = bench.ROOT / "build/c/gfx/stdlib/gfx/src/backend/soft/fill.obj"
+    off = {n: o for o, k, n in bench.nm(fill)}
+    with tempfile.TemporaryDirectory() as real, tempfile.TemporaryDirectory() as d:
+        (Path(d) / "via").symlink_to(real)
+        listing = bench.profiled(bench.build(".", True), Path(d) / "via").with_suffix(".map").read_text()
+    at = {n: int(a, 16) for a, n in re.findall(r"^0001:([0-9a-f]{8})\*?\s+(\S+)$", listing, re.M)}
+    base = at["_slice_fill_argb"] - off["_fill_argb"]
+    assert at.get("_slice_fill8_tinted") == base + off["_fill8_tinted"], at.get("_slice_fill8_tinted")
+
+
+def profile_map_all_static() -> None:
+    """A module with no global function has its statics named too, its code after the module before it: gfx's GPU
+    backend.c, all static, read as atlas_unpack, 177k of a 486 frame. Checked against the module after it."""
+    backend = bench.ROOT / "build/c/gfx/stdlib/gfx/src/backend/gpu/backend.obj"
+    off = {n: o for o, k, n in bench.nm(backend)}
+    with tempfile.TemporaryDirectory() as d:
+        b = bench.build(".", True)
+        listing = bench.profiled(b, Path(d)).with_suffix(".map").read_text()
+        order = [o.resolve() for o in bench.gfx_objects(b)]
+        ours = (Path(d) / "slice" / f"{order.index(backend.resolve())}_gpu_backend.obj").resolve()
+        at = {n: int(a, 16) for a, n in re.findall(r"^0001:([0-9a-f]{8})\*?\s+(\S+)$", listing, re.M)}
+        mods = re.split(r"(?m)^Module: ", listing)
+        i = next(k for k, m in enumerate(mods) if m.startswith(f"{ours}("))
+        after = next(m for m in mods[i + 1 :] if re.search(r"(?m)^0001:", m))
+        name = re.search(r"(?m)^0001:[0-9a-f]{8}\*?\s+(\S+)$", after)[1]
+        next_base = at[name] - {n: o for o, k, n in bench.nm(Path(re.match(r"(.*?)\(", after)[1]))}[name]
+    size = bench.sections(backend)["code"]
+    assert "_slice_aim" in at, "the GPU backend's statics unnamed"
+    assert at["_slice_aim"] - off["_aim"] + size == next_base, (at["_slice_aim"], next_base)
+
+
+# Counters that fail, as on the CI VMs: the first symbol found wins over the system's.
+BROKEN = """
+#include <stddef.h>
+int thread_selfcounts(int k, void *p, size_t n) { return 1; }
+long syscall(long n, ...) { return -1; }
+int main(void) { return 0; }
+"""
+
+
+def broken_counter() -> None:
+    """A counter that fails reports so: it read 0, and twice that loop's 0 cost divided by zero."""
+    with tempfile.TemporaryDirectory() as d:
+        exe, stub = Path(d) / "insns", Path(d) / "stub.c"
+        stub.write_text(BROKEN)
+        cc = os.environ.get("CLANG", "clang")
+        subprocess.run(
+            [cc, "-std=c23", str(bench.ROOT / "src/plat/host/app/insns.c"), str(stub), "-o", str(exe)], check=True
+        )
+        err = subprocess.run([str(exe)], env=os.environ | {"QB_INSNS": "1"}, capture_output=True, text=True).stderr
+        assert err == "\ninsns unavailable\n", f"a failed counter reported {err!r}"
+        try:
+            bench.count(exe, stub, "QB_INSNS", b"insns")
+        except bench.NoCounter:
+            return
+        raise AssertionError("bench counted a failed counter")
+
+
+def demo_colours(b: bench.Build) -> None:
+    """Each demo runs at 8 bits: ISLES' &H1E4E8C on an 8-bit surface raised Illegal function call, and every column of
+    its table read exit."""
+    with tempfile.TemporaryDirectory() as d:
+        for n in ("stage.bas", "meter.bas"):
+            shutil.copy(bench.DEMOS / n, d)
+        for name in bench.DEMO_EDITS:
+            (Path(d) / "DEMO.BAS").write_text(bench.demo_program(name, 0.5, False, 0))
+            r = subprocess.run([str(b.counted), "DEMO.BAS"], cwd=d, capture_output=True, text=True, timeout=60)
+            assert re.fullmatch(r"\s*[\d.]+\s+\d+\s*", r.stdout), f"{name}: {r.stdout}{r.stderr}"
+
+
+# a label drawn and its surface marked, then drawn again with the same text: the zoom, then the marked pixel's bytes
+# as marked and as found after
+LABEL_KEPT = """import gfx.display, gfx.draw, gfx.surface
+from stage import Stage, measure, label
+canvas& = gfx.display.open(640, 480, 32, 0)
+dim st as Stage
+measure canvas&, st
+grey& = gfx.display.rgb(200, 200, 200)
+dim px(3) as byte
+label canvas&, st.top, 0, 0, "60 fps", grey&, st.zoom
+gfx.draw.clear st.top.surface, gfx.display.rgb(255, 0, 0)
+gfx.surface.read st.top.surface, 0, 0, 1, 1, px()
+print st.zoom; px(0); px(1); px(2); px(3);
+label canvas&, st.top, 0, 0, "60 fps", grey&, st.zoom
+gfx.surface.read st.top.surface, 0, 0, 1, 1, px()
+print px(0); px(1); px(2); px(3)
+gfx.display.close
+"""
+
+
+def demo_label_kept(b: bench.Build) -> None:
+    """A demo's scaled text keeps its surface while the text stays: made, drawn into and freed each frame, a 3D card
+    drew it, read it back and sent it again, and CUBE's text took 78% of a P100's frame on a Voodoo 1."""
+    with tempfile.TemporaryDirectory() as d:
+        shutil.copy(bench.DEMOS / "stage.bas", d)
+        (Path(d) / "KEPT.BAS").write_text(LABEL_KEPT)
+        r = subprocess.run([str(b.counted), "KEPT.BAS"], cwd=d, capture_output=True, text=True, timeout=60)
+        zoom, *px = r.stdout.split() or ["", ""]
+        assert zoom == "2" and len(px) == 8 and px[:4] == px[4:] and px[:4] != ["0"] * 4, f"{r.stdout}{r.stderr}"
+
+
+def demo_one_world() -> None:
+    """demos' runs draw one world and, by frames, one frame n. ISLES seeded its islands and boats from the timer, so
+    two builds profiled drew two worlds: a third of one's frame was circles the other never drew."""
+    for name in bench.DEMO_EDITS:
+        assert "randomize timer" not in bench.demo_program(name, 1, False, 0), name
+        framed = bench.demo_program(name, 0, False, 0, frames=5)
+        assert "gfx.display.clock" not in framed and "frames& >= 5" in framed, name
+
+
+def games_meadow16_at_16_bits() -> None:
+    """games' MEADOW16 is MEADOW at 16 bits and its own size. Its job gave 16 and True as frames and depth: its screen
+    opened at depth True, an Illegal function call on DOS before its first frame."""
+    program = bench.game_jobs()["MEADOW16"][0](4)[0]
+    assert "const DEPTH = 16\n" in program and "gfx.display.open(W, H, 16, " in program, "not at 16 bits"
+    assert "gfx.display.VSYNC" not in program, "at the retrace"
+    assert "const W = 640\n" in program and "(frames& / 30#)" not in program, "not at its size, or by frames"
+
+
+def frame_profile_unseen() -> None:
+    """A frame's profile shows the instructions no function was seen running. On DOSBox-X's Voodoo 2, 2.7M of a
+    frame's 3.3M ran where its profiler named none, and the table read as if the frame were BASIC's and gfx's."""
+    runs = [
+        (bench.dosrun.Result("demo", "", "exit", 100, 10, selfs={"f": 50}), 1),
+        (bench.dosrun.Result("demo", "", "exit", 1100, 20, selfs={"f": 250}), 11),
+    ]
+    with (
+        unittest.mock.patch.object(bench, "dos_profile", side_effect=runs),
+        unittest.mock.patch("sys.stdout", new_callable=io.StringIO) as out,
+    ):
+        bench.print_frame_profile("t", Path("t.exe"), [(), ()], 1000, {}, 5)
+    unseen = [line for line in out.getvalue().splitlines() if "no function" in line]
+    assert len(unseen) == 1 and unseen[0].split()[:2] == ["80", "80.0%"], out.getvalue()
+
+
+def fps_start_up() -> None:
+    """fps --profile's baseline is the start-up alone: one frame logged. Without it the frames' profile held the
+    start-up's sprites and tables, a third of a run (STR$'s digits 1.3M calls that no frame makes)."""
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "M.BAS").write_text(bench.fps_program(one=True), encoding="latin-1")
+        subprocess.run([str(bench.ROOT / "build/host/basic"), "M.BAS"], cwd=d, stdin=subprocess.DEVNULL,
+                       capture_output=True, timeout=120, env=os.environ | {"SDL_VIDEODRIVER": "dummy"})
+        rows = (Path(d) / "FPS.TXT").read_text().split("\n")
+        assert len([r for r in rows if r.strip()]) == 1, rows[:3]
+
+
+def profile_stop() -> None:
+    """A profiled program that stops on an error says so. Out of memory in DOSBox's 4 MB, a program's
+    profile read as its compile alone: 41.8M instructions, no line of it run."""
+    oom = bench.dosrun.Result("prog", "Out of memory in line 12", "exit", 0, 0)
+    assert "Out of memory" in bench.stopped(oom), bench.stopped(oom)
+    assert bench.stopped(bench.dosrun.Result("prog", "", "exit", 0, 0)) == ""
+
+
+def each_reps() -> None:
+    """fps --each reads TIMER once per EACH_REPS calls. Read once a call, its millisecond on DOS rounded each
+    call's cost: DrawMoth read 0 ms, the rest whole ms."""
+    loops = bench.each_program().split("\nDO\n")[1:]
+    assert len(loops) == 1 + len(bench.FPS_EACH), len(loops)
+    for body in loops:
+        body = body.split("\nLOOP UNTIL")[0]
+        assert body.count("TIMER") == 0 and f"FOR q = 1 TO {bench.EACH_REPS}" in body, body
+
+
+def charlie_each() -> None:
+    """bench.py charlie's program is the game as it is written now, every call timed. Made for an upper-case END
+    and a LoadLevel without its level, it found no Main in the game and stopped before a single measurement."""
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "CHARLIE.DAT").write_bytes(bench.CHARLIE.with_suffix(".DAT").read_bytes())
+        for package in ("barkley", "engine"):
+            shutil.copytree(bench.CHARLIE.with_name(package), Path(d) / package)
+        (Path(d) / "C.BAS").write_text(bench.charlie_program().replace("TIMER - t0 >= 2", "TIMER - t0 >= 0"))
+        subprocess.run([str(bench.ROOT / "build/host/basic"), "C.BAS"], cwd=d, stdin=subprocess.DEVNULL,
+                       capture_output=True, timeout=120, env=os.environ | {"SDL_VIDEODRIVER": "dummy"})
+        log = Path(d) / "EACH.TXT"
+        rows = [r for r in log.read_text().split("\n") if r.strip()] if log.exists() else []
+        assert len(rows) == 1 + len(bench.CHARLIE_EACH), rows[:3]
+
+
+def charlie_think() -> None:
+    """The think count is the cases of the things' own rules' switch on a kind. Once the things' pass switched on
+    their kind's mind it still read the pass, and counted 0 of 14."""
+    think = bench.CHARLIE.with_name("barkley") / "stage/things/think.bas"
+    body = think.read_text().split("private sub Think (")[1].split("\nend sub")[0]
+    want = len(re.findall(r"(?m)^    case K", body))
+    got = bench.engine_measures()["`case` branches that name a kind: draw, touch, think"].split(", ")[2]
+    assert want and got == str(want), f"think counted {got} of {want}"
+
+
+KIND_READS = """type Thing
+    kind as integer
+end type
+sub S (t as Thing)
+    dim k as integer, b as integer
+    k = t.kind
+    if t.kind = 3 then k = 1
+    b = t.kind = 4
+    t.kind = 2
+end sub
+"""
+
+
+def kind_compares() -> None:
+    """A kind read into a variable is not compared: counted as compared, the reads in DrawThings, Touch and
+    ResetWorld raised the Today table's comparisons by three."""
+    prog = bench.basic_src.Program({Path("k.bas"): KIND_READS})
+    mod = prog.modules[0]
+    got = [bench.kind_compares(prog, mod, st) for st in mod.stmts]
+    assert sum(got) == 2, f"{sum(got)} comparisons of a kind, of 2: {got}"
+
+
+# Instructions a pass on arm64 macOS, with room over what they measured; past one, a regression.
+# A string's allocation over a literal's store: strg_gc inlined into strg_alloc saved and set up
+# its registers on every allocation, 238 (217 out of line). The collector asking the stack whether
+# each dead block's owner was popped before checking its pointer, 251.
+ALLOC_BUDGET = 228
+# A SUB with a fixed local array over an empty SUB: its return looped over its locals and swept
+# the arrays, 457 (402 by the inline PRET).
+FRAME_ARRAY_BUDGET = 430
+# A SUB DIMming a dynamic local array over one that does not: on the heap, made and swept at its
+# return, 900 (850 on main); 536 on its call's arena.
+DYN_ARRAY_BUDGET = 590
+# A DOUBLE function's pass, its op a cold one, a million passes for a tenth of an instruction: back
+# through next's join every op copied ip through another register, 101 (100 on main); 92 without.
+COLD_OP_BUDGET = 94
+# A read of a record's dynamic array field's element over a literal's store: through CALL FELEM and
+# arry_ref, 173; 66 by FE.ADDR from its header.
+FIELD_ELEM_BUDGET = 72
+# A read of a record's fixed array field's element by a variable subscript over the subscript's
+# store: its bounds pushed and CALL FIDX, 104, more than a dynamic one's; 58 by FX.IDX inline.
+FIXED_ELEM_BUDGET = 64
+
+
+def per_pass(b: bench.Build, body: str, setup: str = "", tail: str = "", n: int = 100000) -> float:
+    """body's instructions a pass of a FOR loop: the loop run n and 2n times, the difference."""
+    progs = {k: f"{setup}\nFOR i& = 1 TO {m}: {body}: NEXT\n{tail}" for k, m in (("one", n), ("two", 2 * n))}
+    r = bench.run_native(b, progs, runs=3)
+    return (r["two"].insns - r["one"].insns) / n
+
+
+def costs(b: bench.Build) -> None:
+    """The budgets: each part's instructions over its base's."""
+    alloc = per_pass(b, 's$ = a$ + "x"', 'a$ = "abcdefgh"') - per_pass(b, 's$ = "abc"', 'a$ = "abcdefgh"')
+    assert alloc <= ALLOC_BUDGET, f"a string's allocation {alloc:.0f} instructions, budget {ALLOC_BUDGET}"
+    frame = per_pass(b, "s", tail="SUB s\nDIM b(10)\nEND SUB") - per_pass(b, "z", tail="SUB z\nEND SUB")
+    assert frame <= FRAME_ARRAY_BUDGET, f"a frame array's call {frame:.0f} instructions, budget {FRAME_ARRAY_BUDGET}"
+    dyn = per_pass(b, "s 10", tail="SUB s (n)\nDIM b(n)\nEND SUB") - per_pass(b, "z 10", tail="SUB z (n)\nEND SUB")
+    assert dyn <= DYN_ARRAY_BUDGET, f"a dynamic local array's call {dyn:.0f} instructions, budget {DYN_ARRAY_BUDGET}"
+    cold = per_pass(b, "y# = ABS(i&)", n=1000000)
+    assert cold <= COLD_OP_BUDGET, f"a cold op's pass {cold:.0f} instructions, budget {COLD_OP_BUDGET}"
+    rec = "TYPE R\n w AS INTEGER\n a() AS INTEGER\nEND TYPE\nDIM r AS R\nREDIM r.a(10)"
+    elem = per_pass(b, "x% = r.a(5)", rec, n=1000000) - per_pass(b, "x% = 0", rec, n=1000000)
+    assert elem <= FIELD_ELEM_BUDGET, f"a record's array element {elem:.0f} instructions, budget {FIELD_ELEM_BUDGET}"
+    fix = "TYPE R\n w AS INTEGER\n f(10) AS INTEGER\nEND TYPE\nDIM r AS R\nk% = 5"
+    fixed = per_pass(b, "x% = r.f(k%)", fix, n=1000000) - per_pass(b, "x% = k%", fix, n=1000000)
+    assert fixed <= FIXED_ELEM_BUDGET, f"a fixed field's element {fixed:.0f} instructions, budget {FIXED_ELEM_BUDGET}"
+
+
+def quickr_ops(b: bench.Build) -> None:
+    """Each Quickr bench case (tools/bench/qr) runs no more ops than its QBasic twin, a set-up op or
+    two aside, and prints the same values. Unfused, its for loop not I.NEXT, and a fn's result a
+    frame cell, it ran 2.1x QBasic's ops on loop and 1.9x on fib."""
+    cases = sorted((bench.QR / "quickr").glob("*.bas"))
+    qr = bench.run_natives([b], {p.stem: p.read_text() for p in cases}, runs=1, quickr=True)[0]
+    qb = bench.run_native(b, {p.stem: (bench.QR / p.name).read_text() for p in cases}, runs=1)
+    for k, q in qr.items():
+        assert q.out.split() == qb[k].out.split(), (k, q.out, qb[k].out)
+        assert q.ops <= qb[k].ops * 1.001, f"{k}: Quickr's {q.ops:,} ops, QBasic's {qb[k].ops:,}"
+
+
+def quickr_push(b: bench.Build) -> None:
+    """A list's push is amortized O(1): each doubling of the pushes costs about twice the last. Grown by
+    one element a push (REDIM PRESERVE's way), it cost 4.0x. Differences, as the bench subtracts a
+    baseline of its own: raw counts at 8000 pushes read 2.45x, the offset not the growth. A run's count
+    swings by 1M, so n large enough to drown that."""
+    prog = bench.QUICKR + "var a as list[int]\nfor i in 0..{n}\n    a.push(i)\nnext\nprint len(a)\n"
+    progs = {str(n): prog.format(n=n) for n in (32000, 64000, 128000)}
+    r = bench.run_natives([b], progs, runs=3, quickr=True)[0]
+    ratio = (r["128000"].insns - r["64000"].insns) / (r["64000"].insns - r["32000"].insns)
+    assert ratio < 2.3, f"doubling the pushes cost {ratio:.2f}x the last doubling"
+
+
+def stdlib_absent() -> None:
+    """A rev before stdlib/ builds: cp with no files failed, so cmp and size couldn't build main."""
+    with tempfile.TemporaryDirectory() as d:
+        p = subprocess.run(
+            ["make", "-C", d, "-f", str(bench.ROOT / "Makefile"), "build/t/lib/.stdlib"], capture_output=True, text=True
+        )
+        assert p.returncode == 0 and (Path(d) / "build/t/lib/.stdlib").exists(), p.stderr
+
+
+def vm_rate() -> None:
+    """A demo's rate on 86Box: DOS/32A's warning, no mouse driver, came first in its output and read as
+    no rate at all."""
+    out = "DOS/32A warning (9004): mouse initialization failed\r\n 42.93390490470216  131 \r\n"
+    assert bench.rate_of("", out) == "42.9", bench.rate_of("", out)
+    assert bench.rate_of("51.23 256 1 9000\r\n", out) == "51.2"
+    assert bench.rate_of("", "Out of memory\r\n") == ""
+    slow = "DOS/32A warning (9004): mouse initialization failed\r\n .7511522675785451  9 \r\n"
+    assert bench.rate_of("", slow) == "0.8", "BASIC's .75, below a frame a second, read as none: a 486 profile quit"
+    assert bench.frames_of(slow) == 9, bench.frames_of(slow)
+
+
+def vm_object_base() -> None:
+    """The program's place in a VM's memory, found by its code: a fixup changes the bytes it patches,
+    so the code's first window, patched, found nothing, and the profile mapped no sample."""
+    code = random.Random(1).randbytes(9000)
+    memory = bytearray(b"\0" * 70000) + bytearray(code) + bytearray(b"\0" * 5000)
+    memory[70000 + 4 : 70000 + 8] = b"\xff\xff\xff\xff"  # a fixup in the first window
+    assert bench.object_base(bytes(memory), code) == 70000, bench.object_base(bytes(memory), code)
+
+
+def vm_bios_prompt() -> None:
+    """A VM a killed run left boots to the BIOS's F1 prompt, its CMOS lost: answered, the job runs. Unanswered, a
+    profile waited out its 1800 s at it."""
+
+    class Vm:
+        def __init__(self) -> None:
+            self.screen, self.pressed = f"CMOS checksum error - Defaults loaded\n{bench.BIOS_PROMPT}", []
+
+        def wait_text(self, pattern: str, timeout: float) -> str:
+            if bench.BIOS_PROMPT not in self.screen:
+                self.screen = "QB-DONE"
+            assert re.search(pattern, self.screen), f"{pattern!r} waited out"
+            return self.screen
+
+        def keys(self, keys: list[str]) -> None:
+            self.pressed += keys
+            self.screen = "Starting MS-DOS..."
+
+        def screen_text(self) -> str:
+            return self.screen
+
+        def sleep(self, ms: float) -> None:
+            pass
+
+    vm = Vm()
+    bench.vm_waited(vm, "QB-DONE", 5.0)
+    assert vm.pressed == ["F1"] and vm.screen == "QB-DONE", (vm.pressed, vm.screen)
+
+
+def games_images_with_drivers() -> None:
+    """A card's profile names the driver the runs were given: it read the driver's DLL and map as each profile
+    began, so a build in between named MEADOW16's Voodoo 1 frames by the Voodoo 2's _sst_blits."""
+    built = iter(range(100))
+    named = []
+    a = bench.argparse.Namespace(card="voodoo1", dosbox=False, profile=True, game=["MEADOW16", "MEADOW"], seconds=1,
+                                 n=1, show=False, machine=None)
+    with (
+        tempfile.TemporaryDirectory() as d,
+        unittest.mock.patch.object(bench, "build", return_value=unittest.mock.Mock(dos=Path(d) / "basic32.exe")),
+        unittest.mock.patch.object(bench, "drivers_of", side_effect=lambda _: {"lib/drivers/V.DRV": next(built)}),
+        unittest.mock.patch.object(bench, "driver_images", side_effect=lambda *_: next(built)),
+        unittest.mock.patch.object(bench, "profiled", return_value=Path("/none/p.exe")),
+        unittest.mock.patch.object(bench, "print_vm_profile", side_effect=lambda *x: named.append((x[4], x[-1]))),
+    ):
+        (Path(d) / "lib").mkdir()
+        (Path(d) / "lib/gfx.qbx").write_bytes(b"")
+        bench.cmd_games(a)
+    ran = {f.get("lib/drivers/V.DRV") for f, _ in named} - {None}
+    assert len(ran) == 1 and {i for _, i in named} == {next(iter(ran)) + 1}, named
+
+
+def vm_profile_runs_disagree() -> None:
+    """A VM's profile says when its two runs disagree. Each row is the longer run less the shorter, each its own
+    boot held to the host's clock, so a loaded host's waits in the shorter went negative: MEADOW16's Voodoo 1 lost
+    its _put and _tdfx_get rows and read 105.9 fps, not 77. A start-up's sampling noise, under 1%, is no
+    disagreement: every profile had some."""
+    def runs(by: dict[str, int], frames: int) -> bench.Samples:
+        return bench.Samples(by, {}, frames, 10, 100.0)
+
+    for shorter, longer, said in (({"_put": 90, "_draw": 50}, {"_put": 40, "_draw": 300}, True),
+                                  ({"_put": 10, "_draw": 50, "_lex": 1}, {"_put": 40, "_draw": 300, "_lex": 0}, False)):
+        out = io.StringIO()
+        with (
+            unittest.mock.patch.object(bench, "vm_samples", side_effect=[runs(shorter, 10), runs(longer, 20)]),
+            unittest.mock.patch.object(sys, "stdout", out),
+        ):
+            bench.print_vm_profile("M", "vm", Path("p.exe"), [(), ()], {}, 1, [])
+        named = [line for line in out.getvalue().splitlines() if "disagree" in line]
+        assert bool(named) == said and all("_put" in line for line in named), out.getvalue()
+
+
+def vm_profile_driver_lines() -> None:
+    """A driver's function by line, with each line's text: _tdfx_corners printed no lines, the program's map alone
+    searched, and a line outside gfx's files no text. An assembled function, without lines, by offset: _memcpy's
+    profile stopped at it."""
+    b = bench.build(".", True)
+    dll = bench.driver_dll(b, "voodoo3")
+    at = {"_tdfx_corners": 0, "_memcpy": 0}
+    runs = [bench.Samples(dict.fromkeys(at, k), {(f, 0): k for f in at}, k, 10, 100.0) for k in (10, 20)]
+    out = io.StringIO()
+    with (
+        tempfile.TemporaryDirectory() as d,
+        unittest.mock.patch.object(bench, "vm_samples", side_effect=runs),
+        unittest.mock.patch.object(sys, "stdout", out),
+    ):
+        exe = Path(d) / "p.exe"
+        exe.with_suffix(".map").write_text("")
+        bench.print_vm_profile("M", "vm", exe, [(), ()], {}, 4, list(at), b, dlls=(dll,))
+    rows = out.getvalue().split("by line:\n")[1].splitlines()
+    assert rows and "setup.c:" in rows[0] and rows[0].split("setup.c:")[1].split()[1:], out.getvalue()
+    assert re.search(r"_memcpy, by offset.*:\n.*\+0x0", out.getvalue()), out.getvalue()
+
+
+def vm_profile_shared_statics() -> None:
+    """Statics two modules share a name with are told apart by their module: draw.c's sprite and the GPU backend's
+    read as one _slice_sprite, 28.5k of MEADOW's 486 frame, by the backend's lines alone."""
+    b = bench.build(".", True)
+    objs = bench.gfx_objects(b)
+    listing = ("Module: /x/slice/3_api_draw.obj(draw.c)\n0001:00000100  _slice_sprite\n"
+               "Module: /x/slice/9_gpu_backend.obj(backend.c)\n0001:00000200  _slice_sprite\n"
+               "0001:00000300  _slice_other\n")
+    named = bench.map_functions(listing)
+    assert named == [(0x100, "_slice_sprite (3_api_draw)"), (0x200, "_slice_sprite (9_gpu_backend)"),
+                     (0x300, "_slice_other")], named
+    for i, name in ((3, named[0][1]), (9, named[1][1])):
+        assert bench.object_of(b, listing, name, ()) == (objs[i].resolve(), "_sprite"), name
+
+
+def vm_window() -> None:
+    """A VM's profile samples the job alone. It sampled from boot until the host stopped it, so the host's delay in
+    seeing the end read as frame time: one build's ISLES on the 486, 14.8M cycles a frame, then 11.9M."""
+    b = bench.build(".", True)
+    own = {n: (bench.DEMOS / n).read_bytes() for n in ("stage.bas", "meter.bas")}
+    job = (bench.demo_program("ISLES", 0, False, 0, frames=2), "", "", own)
+    lib = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
+    with tempfile.TemporaryDirectory() as d:
+        exe = bench.profiled(b, Path(d))
+        vm = bench.MACHINES["486"]
+        soon, late = (sum(bench.vm_samples(vm, exe, job, lib, s).by.values()) for s in (0.0, 2.0))
+    assert abs(late - soon) < soon * 0.001, (soon, late)
 
 
 class Staged(Exception):
@@ -22,56 +508,121 @@ def staged(image: Path, d: Path, com: Path, job: tuple, files: dict, last: str, 
     raise Staged(sets)
 
 
-with tempfile.TemporaryDirectory() as d:
-    (Path(d) / "lib").mkdir()
-    (Path(d) / "lib/gfx.qbx").write_bytes(b"")
-    bench.build = lambda rev, dos: SimpleNamespace(dos=Path(d) / "basic32.exe")
-    bench.card_vm = lambda card, machine: "qb-486-voodoo2"
-    bench.drivers_of = lambda b: {}
-    bench.profiled = lambda b, d: Path(d) / "hlprof.exe"
-    bench.driver_images = lambda b, card, exe: ()
-    bench.driver_dll = lambda b, card: Path(d) / "voodoo2.dll"
-    bench.hl86_module = lambda: None
-    bench.vm_stage = staged
-    a = argparse.Namespace(card="voodoo2", machine="486", profile=True, demo=["MEADOW"], frames=None, edits=None,
-                           depth=16, n=20, at=None, lines=False, set=["SSTV2_CMDFIFO=1"], show=False)
-    try:
-        bench.demos_on_card(a, {})
-        raise AssertionError("no job staged")
-    except Staged as e:
-        assert e.args[0] == ("SSTV2_CMDFIFO=1",), e.args
+def card_profile_sets() -> None:
+    """demos --card --profile dropped --set, so SSTV2_CMDFIFO=1 profiled the Voodoo 2's direct writes as if they
+    were its command FIFO's."""
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "lib").mkdir()
+        (Path(d) / "lib/gfx.qbx").write_bytes(b"")
+        a = argparse.Namespace(card="voodoo2", machine="486", profile=True, demo=["MEADOW"], frames=None,
+                               edits=None, depth=16, n=20, at=None, lines=False, set=["SSTV2_CMDFIFO=1"], show=False)
+        with unittest.mock.patch.multiple(
+            bench,
+            build=lambda rev, dos: SimpleNamespace(dos=Path(d) / "basic32.exe"),
+            card_vm=lambda card, machine: "qb-486-voodoo2",
+            drivers_of=lambda b: {},
+            profiled=lambda b, d: Path(d) / "hlprof.exe",
+            driver_images=lambda b, card, exe: (),
+            driver_dll=lambda b, card: Path(d) / "voodoo2.dll",
+            hl86_module=lambda: None,
+            vm_stage=staged,
+        ):
+            try:
+                bench.demos_on_card(a, {})
+                raise AssertionError("no job staged")
+            except Staged as e:
+                assert e.args[0] == ("SSTV2_CMDFIFO=1",), e.args
 
-listing = """
+
+def driver_functions_by_module() -> None:
+    """A driver's function named as one of the program's, tdfx.c's drawn as player.c's, read the program's source
+    lines by line."""
+    listing = """
  0001:00000100       _drawn                     0000000010001100     tdfx.obj
  0001:00000200       _put                       0000000010001200     sst.obj
  0001:00000300       _put                       0000000010001300     cvg.obj
  0001:00000400       _tdfx_setup                0000000010001400     setup.obj
 """
-assert bench.dll_functions(listing, frozenset({"_drawn"})) == [
-    (0x100, "_drawn (tdfx)"),
-    (0x200, "_put (sst)"),
-    (0x300, "_put (cvg)"),
-    (0x400, "_tdfx_setup"),
-]
-# TEMPLE's "no fires" edit outlived draw_fires's call on one line, so bench --edits stopped on it
-for name, edits in bench.DEMO_EDITS.items():
-    bench.demo_program(name, 1, False, len(edits), sized=True)
+    assert bench.dll_functions(listing, frozenset({"_drawn"})) == [
+        (0x100, "_drawn (tdfx)"),
+        (0x200, "_put (sst)"),
+        (0x300, "_put (cvg)"),
+        (0x400, "_tdfx_setup"),
+    ]
 
-# --show opened the stock 86Box, not the fork bench times on: TEMPLE showed 10 fps where bench timed 17
-opened = []
-run, vms, stage, autorun = bench.subprocess.run, bench.HL86_VMS, bench.vm_stage, bench.vm_autorun
-with tempfile.TemporaryDirectory() as d:
-    (Path(d) / "qb-p100-voodoo2").mkdir()
-    (Path(d) / "qb-p100-voodoo2/86box.cfg").write_text("")
-    bench.HL86_VMS = Path(d)
-    bench.vm_stage = lambda *args: None
-    bench.vm_autorun = lambda *args: None
-    bench.subprocess.run = lambda args, **kw: opened.append(args)
+
+def demo_edits_apply() -> None:
+    """TEMPLE's "no fires" edit outlived draw_fires's call on one line, so bench --edits stopped on it."""
+    for name, edits in bench.DEMO_EDITS.items():
+        bench.demo_program(name, 1, False, len(edits), sized=True)
+
+
+def shown_in_the_fork() -> None:
+    """--show opened the stock 86Box, not the fork bench times on: TEMPLE showed 10 fps where bench timed 17."""
+    opened: list = []
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "qb-p100-voodoo2").mkdir()
+        (Path(d) / "qb-p100-voodoo2/86box.cfg").write_text("")
+        with unittest.mock.patch.multiple(
+            bench, HL86_VMS=Path(d), vm_stage=lambda *args: None, vm_autorun=lambda *args: None
+        ), unittest.mock.patch.object(bench.subprocess, "run", lambda args, **kw: opened.append(args)):
+            bench.vm_shown("qb-p100-voodoo2", Path("basic32.exe"), ("",), {})
+        shutil.rmtree(opened[0][6].parent)
+    assert Path(opened[0][3]).is_relative_to(bench.HL86), opened[0][3]
+
+
+def main() -> int:
+    card_profile_sets()
+    driver_functions_by_module()
+    demo_edits_apply()
+    shown_in_the_fork()
+    dos_by_its_own_rules()
+    stdlib_absent()
+    each_reps()
+    demo_one_world()
+    games_meadow16_at_16_bits()
+    frame_profile_unseen()
+    charlie_each()
+    charlie_think()
+    kind_compares()
+    profile_cycles()
+    profile_stop()
+    broken_counter()
+    fps_start_up()
+    vm_rate()
+    vm_object_base()
+    vm_bios_prompt()
+    games_images_with_drivers()
+    vm_profile_runs_disagree()
+    vm_profile_driver_lines()
+    vm_profile_shared_statics()
+    if (bench.HL86 / "build/src/86Box-headless").exists():
+        vm_window()
+    b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised
+    demo_colours(b)
+    demo_label_kept(b)
     try:
-        bench.vm_shown("qb-p100-voodoo2", Path("basic32.exe"), ("",), {})
-    finally:
-        bench.subprocess.run, bench.HL86_VMS, bench.vm_stage, bench.vm_autorun = run, vms, stage, autorun
-    shutil.rmtree(opened[0][6].parent)
-assert Path(opened[0][3]).is_relative_to(bench.HL86), opened[0][3]
+        r = bench.run_native(b, {"one": loop(1000000), "two": loop(2000000)}, runs=5)
+    except bench.NoCounter:
+        print("skipped: no instruction counter")
+        return 0
+    ratio = r["two"].insns / r["one"].insns
+    assert (r["one"].out, r["two"].out) == ("1000000", "2000000"), r
+    assert 1.95 < ratio < 2.05, f"twice the loop cost {ratio:.3f}x"
+    again = [bench.run_native(b, {"two": loop(2000000)}, runs=1)["two"].insns for _ in range(5)]
+    assert max(again) / min(again) < 1 + bench.INSNS_SLACK, f"one program's counts {again}"
+    costs(b)
+    quickr_ops(b)
+    quickr_push(b)
+    exe = bench.ROOT / "build/c/basic32.exe"
+    if exe.exists():  # the loaded bytes, not the file's: its fixups moved with layout
+        assert bench.image(exe) > 100_000 and bench.image(exe) != exe.stat().st_size, bench.image(exe)
+        profile_map()
+        profile_map_slice()
+        profile_map_all_static()
+    print("ok")
+    return 0
 
-print("bench_test ok")
+
+if __name__ == "__main__":
+    sys.exit(main())

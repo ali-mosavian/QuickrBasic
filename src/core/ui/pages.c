@@ -6,7 +6,9 @@
  * runtime's state stays as the program left it, so a continue, a step or an immediate line draws
  * on. The output shown again sets the mode back and the screen with it (qbrt_shot_show), and the
  * block is given back. With no room to keep it, the program's screen goes back to text mode, as a
- * new run's. A run starts in text mode. The program's console is the runtime's, on the page shown (the BIOS's active one).
+ * new run's. A run starts in text mode. An extension's screen (plat/pgfx.h) is hidden the same way
+ * and shown again, its page in memory all along. The program's console is the runtime's, on the
+ * page shown (the BIOS's active one).
  *
  * # asm structure (retired/asm32/ui/ui.asm)
  * | asm | here | |
@@ -16,6 +18,7 @@
  */
 #include "ui/pages.h"
 #include "io/console.h"
+#include "plat/pgfx.h"
 #include "plat/pmem.h"
 #include "plat/pscr.h"
 #include "qbrt/qbrt.h"
@@ -28,6 +31,8 @@ static struct {
 
 void upag_in(Session *const S)
 {
+    pgfx_hide();
+
     if (qbrt_graphics() && !pg.shot) {
         pg.shot = pmem_resize(nullptr, qbrt_shot_size());
 
@@ -57,6 +62,7 @@ void upag_out(Session *const S)
     pscr_page(PAGE_OUT);
     qbrt_pages_show(); /* the program's own visible page, where it has one */
     them_out();
+    pgfx_unhide();
 }
 
 void upag_clear(Session *const S)

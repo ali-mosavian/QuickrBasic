@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' os: args() from the command line (COMMAND$'s, upper case), env, exit
 import os
 let a = os.args()

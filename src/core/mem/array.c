@@ -149,9 +149,7 @@ static bool arry_heap(const Addr h) { return *arry_kind(h) == KIND_HEAP; }
 
 static bool arry_arena(const Addr h) { return *arry_kind(h) == KIND_ARENA; }
 
-/* Header h is a frame's, its local's DIMmed with constant bounds (comp/frame.c), or a field cell's:
-   REDIM never. */
-static bool arry_fixed(const Addr h) { return !arry_heap(h) && !arry_arena(h); }
+bool arry_fixed(const Addr h) { return !arry_heap(h) && !arry_arena(h); }
 
 /* A field cell, after its header: the cell, the stack its call's arguments lie above and its
    segment, the next older one's header. */
@@ -428,8 +426,7 @@ uint32_t arry_size(const Arry *const ay, const Addr hdr)
 
 /* ---- freeing -------------------------------------------------------------------------------- */
 
-/* The arrays the n et elements at data hold dead, ours, a record's. */
-static void arry_kill_recs(Arry *const ay, const Addr data, const uint32_t n, const uint32_t et)
+void arry_kill_recs(Arry *const ay, const Addr data, const uint32_t n, const uint32_t et)
 {
     if (et < ET_REC)
         return;

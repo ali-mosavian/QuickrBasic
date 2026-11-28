@@ -267,7 +267,7 @@ OP(I_COUNT_UP_L, flow_i_count_up_l, NEXT_SIZE, 0)
 FRAME(I_COUNT_UP, I_COUNT_UP_L)
 OP(V_REF, exec_v_ref, 1 + VID, FP)  /* a parameter's ref, passed on */
 OP(FE_ADDR, exec_fe_addr, 10, 0)    /* a record's array field's element ( a s.. -- e ): off:4 n esize:4 */
-OP(FX_IDX, exec_fx_idx, 13, 0)      /* a fixed array field's element ( a s -- e ): lb count stride */
+OP(FX_IDX, exec_fx_idx, 17, 0)      /* a fixed array field's element ( a s -- e ): off lb count stride */
 OP(E_NEXT, flow_e_next, E_NEXT_SIZE, 0) /* for x in a's next: i, a and x Locs (comp/select.c), a Jump */
 OP(I_COUNT_DN_L, flow_i_count_dn_l, NEXT_SIZE, 0)
 FRAME(I_COUNT_DN, I_COUNT_DN_L)
@@ -349,6 +349,13 @@ XOP(I_COUNT, flow_i_count, 3, 0)
 XOP(HOLD, stmt_hold, 2, 0) /* ours: a call while addresses into the heap wait on the stack */
 XOP(UNHOLD, stmt_unhold, 2, 0)
 XOP(FRES, func_fres, 2, FX) /* FRE(s$) ( s -- n ): the strings' room */
+XOP(QLIST, stmt_qlist, 2, 0) /* ( cell -- cell ): an array for a Quickr T[] parameter, ours */
+XOP(N_ABS, qrt_nabs, 3, FX + FK) /* math's, of any number: its QrtNum (qr/qrt.h) */
+XOP(N_MIN, qrt_nmin, 3, FX + FK)
+XOP(N_MAX, qrt_nmax, 3, FX + FK)
+XOP(N_CLAMP, qrt_nclamp, 3, FX + FK)
+XOP(D_ATAN2, dubl_atan2, 2, FX + FK) /* math's ( y x -- r ) */
+XOP(D_LERP, dubl_lerp, 2, FX + FK)   /* math's ( a b t -- r ) */
 #undef XOP
 #endif
 

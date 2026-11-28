@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' spelling: its signature, and what print and f-strings can't spell
 type Vec
     x as double

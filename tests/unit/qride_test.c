@@ -7,6 +7,7 @@
 #include "plat/pkey.h"
 #include "plat/pmem.h"
 #include "session.h"
+#include "mem/alloc.h"
 #include "comp/suggest.h"
 #include "qr/qr.h"
 #include "ui/debuglocals.h"
@@ -29,7 +30,7 @@ void headless_set_stdout_is_screen(int yes);
 
 static const char *const files[] = {"main.bas", "gfx.bas", "util.bas", nullptr};
 
-#define DIALECT "' OPTION DIALECT QUICKR\n"
+#define DIALECT "option dialect quickr\n"
 
 /* main.bas, importing util.bas, both Quickr's, opened. */
 static void open_quickr(Session *const S)
@@ -93,7 +94,7 @@ TEST(qride_keeps_a_line_as_typed)
     CHECK(uimn_save(S));
     CHECK(!strcmp(
         fx_file_text("main.bas"),
-        "' OPTION DIALECT QUICKR\r\nimport util\r\nlet n = util.twice(2)\r\nprint n + 1\r\n"
+        "option dialect quickr\r\nimport util\r\nlet n = util.twice(2)\r\nprint n + 1\r\n"
     ));
     fx_done(S, files);
 }
@@ -108,12 +109,33 @@ TEST(qride_keeps_the_dialect_line)
     edit_load(S, view_goline(S, 1));
     fx_key(S, FX_BACKSPACE, 0);
     edit_commit(S);
-    CHECK(fx_line_of(S, "' OPTION DIALECT QUICKR") == 0);
+    CHECK(fx_line_of(S, "option dialect quickr") == 0);
     CHECK(fx_line_of(S, "import util") == 1);
     edit_load(S, view_goline(S, 0));
     fx_key(S, FX_END, 0);
     fx_key(S, FX_ENTER, 0);
     CHECK(uimn.ed.line == 1 && fx_line_of(S, "") == 1);
+    fx_done(S, files);
+}
+
+/* A Quickr file whose doc comment went before its mark was QBasic's, in the editor too: the mark
+   was the first line, and a comment. */
+TEST(qride_marks_a_file_past_its_doc_comment)
+{
+    fx_open_program(S, "");
+    fx_write_file("main.bas", "' doc\n\n" DIALECT "import util\nlet n = util.twice(2)\nprint n\n");
+    fx_write_file(
+        "util.bas",
+        "' doc\n" DIALECT "function twice(x as int) as int\n    return x * 2\nend function\n"
+    );
+    uimn_open(S, fx_path_of("main.bas"));
+    CHECK(text_dialect(S) == &dialect_quickr);
+    CHECK(text_dialect_at(S, fx_line_of(S, "import util")) == &dialect_quickr);
+    const uint32_t mark = fx_line_of(S, "option dialect quickr");
+    CHECK(!text_marker(S, uimn.text.first + 0) && text_marker(S, uimn.text.first + mark));
+    CHECK(fx_typed_over(S, 0, "' the doc"));
+    fx_typed_over(S, mark, "x");
+    CHECK(fx_line_of(S, "option dialect quickr") == mark);
     fx_done(S, files);
 }
 
@@ -176,6 +198,46 @@ TEST(qride_runs_modules_first)
     fx_done(S, files);
 }
 
+/* Each F5 of a Quickr program took more memory, about the size of its tree: the tree before's
+   blocks, and those of each module read, were never given back. */
+TEST(qride_runs_again_in_the_same_memory)
+{
+    open_quickr(S);
+    captured(S, uimn_run);
+    captured(S, uimn_run);
+    const uint32_t left = allo_free(&S->allo);
+    captured(S, uimn_run);
+    captured(S, uimn_run);
+    CHECK(allo_free(&S->allo) == left);
+    fx_done(S, files);
+}
+
+/* Each open of a Quickr program took more memory, a block a line: each line's scan for its
+   blocks' words lost its arena's. Importing HIGHVALE's modules cost twice their trees. */
+TEST(qride_opens_again_in_the_same_memory)
+{
+    open_quickr(S);
+    uimn_open(S, fx_path_of("main.bas"));
+    const uint32_t left = allo_free(&S->allo);
+    uimn_open(S, fx_path_of("main.bas"));
+    uimn_open(S, fx_path_of("main.bas"));
+    CHECK(allo_free(&S->allo) == left);
+    fx_done(S, files);
+}
+
+/* A stdlib module imported before one with no statements: the jump past the stdlib's last
+   function skipped the other's lines to the run's end, so F5 ran nothing of the main. */
+TEST(qride_runs_the_main_after_a_stdlib_import)
+{
+    fx_open_program(S, "");
+    fx_write_file("main.bas", DIALECT "import math\nfrom util import k\nprint \"ran\"; k\n");
+    fx_write_file("util.bas", DIALECT "const k = 2\n");
+    uimn_open(S, fx_path_of("main.bas"));
+    captured(S, uimn_run);
+    CHECK(strstr((const char *)S->cons.sbuf, "ran2") != nullptr);
+    fx_done(S, files);
+}
+
 /* A type error stopped nothing: the run went on, the cursor stayed. */
 TEST(qride_run_stops_at_a_type_error)
 {
@@ -198,7 +260,7 @@ TEST(qride_new_asks_the_dialect)
     uimn_act(S, ACT_NEW);
     pkey_flush();
     CHECK(text_dialect(S) == &dialect_quickr);
-    CHECK(fx_line_of(S, "' OPTION DIALECT QUICKR") == 0);
+    CHECK(fx_line_of(S, "option dialect quickr") == 0);
     CHECK(uimn.ed.line == 1);
     fx_shown(S);
     CHECK(strstr(fx_row(24), "Quickr") != nullptr);
@@ -214,10 +276,10 @@ TEST(qride_new_asks_the_dialect)
 /* The cursor's text line. */
 static uint32_t cursor_line(void) { return uimn.text.first + uimn.ed.line; }
 
-static const char generic[] = DIALECT "function at[T](a as T[], i as int) as T\n"
+static const char generic[] = DIALECT "function at[T](a as list[T], i as int) as T\n"
                                       "    return a[i]\n"
                                       "end function\n"
-                                      "var xs as int[]\n"
+                                      "var xs as list[int]\n"
                                       "xs.push(1)\n"
                                       "print at(xs, %d)\n"
                                       "print 2\n";
@@ -544,7 +606,7 @@ TEST(qride_completes_generic_records)
     fx_open_program(S, "");
     fx_write_file(
         "main.bas",
-        DIALECT "type Stack[T]\n    items as T[]\n"
+        DIALECT "type Stack[T]\n    items as list[T]\n"
                 "    fn push(mut self, x as T)\n        self.items.push(x)\n    end fn\n"
                 "    fn empty() as Stack[T]\n        var s as Stack[T]\n        return s\n"
                 "    end fn\nend type\n"
@@ -628,6 +690,41 @@ static const char blocks[] = DIALECT "function f(x as int) as int\n"
                                      "end type\n"
                                      "let total = f(1)\n"
                                      "print total\n";
+
+/* Each completion of a Quickr line took more memory: its parse's arena was never given back. */
+TEST(qride_completes_in_the_same_memory)
+{
+    fx_open_program(S, "");
+    fx_write_file("main.bas", blocks);
+    uimn_open(S, fx_path_of("main.bas"));
+    first(S, "        print i", "        ");
+    const uint32_t left = allo_free(&S->allo);
+    first(S, "        print i", "        ");
+    first(S, "        print i", "        ");
+    CHECK(allo_free(&S->allo) == left);
+    fx_done(S, files);
+}
+
+/* Each draw with the cursor on a Quickr block's word took more memory: each line's scan for its
+   block words lost its arena's. */
+TEST(qride_lights_a_block_in_the_same_memory)
+{
+    fx_open_program(S, "");
+    fx_write_file("main.bas", blocks);
+    uimn_open(S, fx_path_of("main.bas"));
+    uint32_t left = 0;
+
+    for (uint32_t i = 0; i < 3; i++) {
+        fx_cursor_on(S, "    for i in 0..9", "for");
+        fx_shown(S);
+        fx_cursor_on(S, "    next", "next");
+        fx_shown(S);
+        CHECK(!i || allo_free(&S->allo) == left);
+        left = allo_free(&S->allo);
+    }
+
+    fx_done(S, files);
+}
 
 /* A Quickr line's completion knew no open block: in a for it offered for first, not next, and
    a for just taken outranked a closer; in an if, no else; end was not first in a function. */

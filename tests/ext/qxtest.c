@@ -43,7 +43,7 @@ float qxtest_total(const QxArray *const a)
 
 int32_t qxtest_items(const QxArray *const a) { return (int32_t)a->count; }
 
-void qxtest_fail(const int32_t code) { qx_fail((uint8_t)code); }
+void qxtest_fail(const int32_t code) { qx_fail_why((uint8_t)code, "qxtest was asked to fail"); }
 
 int32_t qxtest_runs(void) { return started; }
 

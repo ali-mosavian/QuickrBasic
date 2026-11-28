@@ -1,10 +1,10 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 type Pt
     x as int
     y as int
 end type
 
-function total(a as Pt[]) as int
+function total(a as list[Pt]) as int
     var s = 0
     for k in 0..4000
         for p in a
@@ -14,7 +14,7 @@ function total(a as Pt[]) as int
     return s
 end function
 
-var a as Pt[]
+var a as list[Pt]
 for i in 0..1000
     a.push(Pt(i mod 500, i mod 7))
 next

@@ -123,7 +123,7 @@ static QExpr *qsem_apply(QSem *const S, QExpr *const e, const QLam *const l, con
 
 /* Operator or method fn f's call e of argv, inlined: f's one return's value checked again here,
    each parameter read where its argument is when cheap, else stored first. Its own module's names
-   in sight, not the caller's. */
+   in sight, not the caller's; its uses and moves at e. */
 QExpr *qsem_inline(QSem *const S, QExpr *const e, QFn *const f, QExpr **const argv)
 {
     const uint32_t lo = S->hidelo, hi = S->hidehi;
@@ -147,12 +147,15 @@ QExpr *qsem_inline(QSem *const S, QExpr *const e, QFn *const f, QExpr **const ar
 
     qsem_typeargs(S, f);
     const QFn *const outer = S->body;
+    const uint32_t site = S->site;
+    S->site = outer ? site : qsem_at(S, e->tok); /* a call in an inlined body: the outer call's */
     S->body = f;
     f->inlining = true;
     QExpr *const body = qpar_reexpr(S->prog, S->mem, f->lone);
     QExpr *const v = body ? qsem_expr(S, body, f->result) : nullptr;
     f->inlining = false;
     S->body = outer;
+    S->site = site;
     qsem_pop(S);
     S->hidelo = lo;
     S->hidehi = hi;
@@ -624,7 +627,7 @@ QExpr *qsem_name(QSem *const S, QExpr *const e)
     QVar *const v = b->var;
     QVar *const named = v->place ? qsem_root(v->place) : v; /* a constant yielded: none */
     QVar *const root = named ? named : v;
-    const uint32_t at = qsem_at(S, e->tok);
+    const uint32_t at = qsem_useat(S, e->tok);
     root->last = at > root->last ? at : root->last;
     root->shared |= S->fn && !root->fn && root->kind != QV_CONST;
     root->shared |= !root->fn && qsem_modof(S, root->name) != qsem_modof(S, e->tok);

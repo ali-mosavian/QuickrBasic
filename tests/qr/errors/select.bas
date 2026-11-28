@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' select case, as QBasic writes it; match names it
 enum Mode
     walk

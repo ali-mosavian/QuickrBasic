@@ -154,7 +154,8 @@ void gfx_draw_circle(
 
     Place where;
 
-    if (g && !gx_illegal(!(r >= 0)) && gx_draw(g, (uint32_t)dst, &c, SHAPE_FLAGS, &where))
+    if (g && !gx_illegal(!(r >= 0), "a radius below 0") &&
+        gx_draw(g, (uint32_t)dst, &c, SHAPE_FLAGS, &where))
         g->backend
             ->circle(g, (Vec){c.x, c.y}, r * where.zoom, (uint32_t)colour, flags & GFX_DRAW_FILL);
 }
@@ -172,7 +173,7 @@ void gfx_draw_arc(
 {
     Gx *const g = gx_get();
 
-    if (!g || gx_illegal(!(r >= 0)))
+    if (!g || gx_illegal(!(r >= 0), "a radius below 0"))
         return;
 
     float s, co;
@@ -229,7 +230,10 @@ void gfx_draw_poly(
     for (int32_t i = 0; i < n && n <= POLY_MOST; i++)
         near = near && (!deep || p[i].z >= 1);
 
-    if (gx_illegal(n < POLY_LEAST || n > POLY_MOST || !near))
+    if (gx_illegal(
+            n < POLY_LEAST || n > POLY_MOST || !near,
+            "too few or too many points, or one behind the camera"
+        ))
         return;
 
     Command c = drawn(
@@ -328,7 +332,7 @@ static void triangles(
     for (int32_t i = 0; i < n; i++)
         near = near && (!deep || p[i].z >= 1);
 
-    if (gx_illegal(n < POLY_LEAST || !near))
+    if (gx_illegal(n < POLY_LEAST || !near, "fewer than 3 points, or one behind the camera"))
         return;
 
     Command c = drawn(kind, (Vec){p[0].x, p[0].y}, (Vec){p[n - 1].x, p[n - 1].y}, colour, flags);
@@ -529,7 +533,7 @@ void gfx_draw_strip(
     if (!s)
         return;
 
-    if (gx_illegal(n < 2))
+    if (gx_illegal(n < 2, "fewer than 2 points"))
         return;
 
     const gfx_draw_vec2 *const p = gx_elements(points, sizeof *p, first, n);
@@ -735,7 +739,7 @@ void gfx_draw_tiles(
     if (!g || !gx_array(map, sizeof(int32_t), 0))
         return;
 
-    if (gx_illegal(columns < 1 || w < 1 || h < 1))
+    if (gx_illegal(columns < 1 || w < 1 || h < 1, "columns or a tile's size below 1"))
         return;
 
     const int32_t rows = (int32_t)map->count / columns;

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 type Named
     x as int
     label as string

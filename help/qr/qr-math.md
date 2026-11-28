@@ -1,7 +1,7 @@
 # math Module
 keys: ~quickr math, ~quickr math.pi, ~quickr math.sqrt, ~quickr math.sin, ~quickr math.cos, ~quickr math.tan, ~quickr math.atan, ~quickr math.exp, ~quickr math.log, ~quickr math.floor, ~quickr math.ceil, ~quickr math.round, ~quickr math.atan2, ~quickr math.abs, ~quickr math.min, ~quickr math.max, ~quickr math.clamp, ~quickr math.lerp, ~quickr math.Vec
 
-Numbers' functions, and a 2-d vector.
+Numbers' functions, each a VM op, and a 2-d vector.
 
     pi                             3.141592653589793
     sqrt sin cos tan atan exp log  of a double, as the VM's ops
@@ -19,7 +19,7 @@ Vec has x and y, both double, and the operators + - (two Vecs),
 a.dot(b), a.length(), and a.text(), which print spells it by.
 
 ## Example
-    ' OPTION DIALECT QUICKR
+    option dialect quickr
     import math
     let v = math.Vec(3, 4)
     print v.length()

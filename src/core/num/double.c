@@ -410,6 +410,9 @@ void dubl_toi(Session *const S)
         repl_error(S, E_OV);
 }
 
+/* -u as D.NEG makes it: -0 stays 0. */
+static uint64_t negated(const uint64_t u) { return u & ~DBL_SIGN ? u ^ DBL_SIGN : u; }
+
 /* frndint, down or toward 0. */
 static uint64_t round_whole(uint64_t u, const bool down)
 {
@@ -464,6 +467,15 @@ void dubl_fn(Session *const S)
         dubl_status(&S->fault, pfpu_dfn(PF_EXP, c->d, &c->d));
         return;
 
+    case DF_CEIL:
+        c->raw = negated(round_whole(negated(c->raw), true));
+        break;
+
+    case DF_ROUND:
+        c->d += 0.5;
+        c->raw = round_whole(c->raw, true);
+        break;
+
     default: {
         static const uint8_t pf[] = {
             [DF_SIN] = PF_SIN,
@@ -478,6 +490,40 @@ void dubl_fn(Session *const S)
     }
 
     dubl_check(&S->fault, c);
+}
+
+/* a op'd as D.ADD .. D.DIV: Overflow when not finite. */
+static double checked(Fault *const f, const double d)
+{
+    if (special((Cell){.d = d}.raw))
+        fault_error(f, E_OV);
+
+    return d;
+}
+
+void dubl_atan2(Session *const S)
+{
+    const double x = exec_popd(&S->vm), y = S->vm.sp->d, pi = 3.141592653589793;
+    double r = 0;
+
+    if (x > 0 || x < 0) { /* not NaN */
+        dubl_status(&S->fault, pfpu_dfn(PF_ATN, checked(&S->fault, y / x), &r));
+
+        if (x < 0)
+            r = checked(&S->fault, y >= 0 ? r + pi : r - pi);
+    } else if (y > 0)
+        r = pi / 2;
+    else if (y < 0)
+        r = -pi / 2;
+
+    S->vm.sp->d = r;
+}
+
+void dubl_lerp(Session *const S)
+{
+    const double t = exec_popd(&S->vm), b = exec_popd(&S->vm), a = S->vm.sp->d;
+    Fault *const f = &S->fault;
+    S->vm.sp->d = checked(f, a + checked(f, checked(f, b - a) * t));
 }
 
 void dubl_pow(Session *const S)

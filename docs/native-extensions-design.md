@@ -146,7 +146,7 @@ typedef struct {
     const QxEntry *entries; uint32_t nentries;
     const QxType *types; uint32_t ntypes;
     void (QX_CALL *start)(void);  /* a run starts: RUN's defaults */
-    void (QX_CALL *stop)(void);   /* it ends: END, an error, Break, CHAIN, an edit */
+    void (QX_CALL *stop)(void);   /* it ends: END, an error, CHAIN, its stop dropped (an edit) */
 } QxModule;
 
 typedef struct QxHost {
@@ -177,8 +177,8 @@ const QxModule *QX_CALL qx_init_synth(const QxHost *host);
 - **The extension's memory is the host's** (`host->alloc`): the C heap (`pmem_resize`), on wasm
   in the shared memory.
 - **The host's services are generic**: audio, pages to draw in, a GPU that plays lists
-  (`qx/qxlist.h`), with shaders or, from minor 5, a fixed pipeline (from minor 6 at 8 bits too),
-  and from minor 7 a texture's levels.
+  (`qx/qxlist.h`), with shaders or, from minor 6, a fixed pipeline (from minor 7 at 8 bits too),
+  and from minor 8 a texture's levels.
   It knows no extension; one shipped with QuickrBasic lives in `stdlib/` and brings
   the rest itself, gfx its shaders.
 
@@ -253,7 +253,8 @@ float synth_beat(void) { ... }
 | an array, `x()` | `const QxArray *` |
 
 `qx_fail(code)` sets the running call's error. pybind11, nanobind and Cython do the same for
-Python.
+Python. `qx_fail_why(code, why)` sets it with a reason, which a host of minor 5 says on the line
+after the error's message.
 
 The VM does no translation of its own. A foreign call at run time would need assembly for i386,
 x86-64 and arm64. It could not reach wasm at all, whose indirect calls must name the exact

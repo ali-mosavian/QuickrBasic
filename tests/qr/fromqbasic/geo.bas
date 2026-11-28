@@ -1,5 +1,14 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 import util
+
+const SIDES = 4
+const WIDE = 100000
+const SHARE as single = 0.5
+const TAU = 6.283185307179586
+const TITLE = "geo\tmap"
+const SET = true
+const DIAGS = SIDES * 2
+private const HID = 1
 
 type Spot
     x as int

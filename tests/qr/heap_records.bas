@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' records with strings and lists in cells: their parts owned as a
 ' box's were, through calls, copies, recursion, the heap's moves; a
 ' record over 256 bytes, its fields past them read by address
@@ -9,7 +9,7 @@ end type
 
 type Bag
     n as int
-    tags as int[]
+    tags as list[int]
     name as string
     pair as Pair
 end type
@@ -61,7 +61,7 @@ let r = parse("")
 if r is Error then print r.message; " "; r.code
 let q = parse("four")
 print q or else 0
-var all as Bag[]
+var all as list[Bag]
 for i in 0..6
     all.push(make(i))
     churn()

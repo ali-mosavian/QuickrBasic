@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a conversion that loses the value is an overflow
 var n = 70000
 print uint(n)

@@ -985,8 +985,8 @@ TEST(gfx_gpu_tells_the_host_a_screen_is_discarded)
     CHECK(GPU_CALL("display.open", I(8), I(8), I(16), I(QX_SCREEN_DISCARD << 1)).error == 5);
 }
 
-/* A fixed host is offered at every depth; before minor 6, which draws indices, not at 8 bits. */
-TEST(gfx_gpu_offers_a_fixed_host_8_bits_from_minor_6)
+/* A fixed host is offered at every depth; before minor 7, which draws indices, not at 8 bits. */
+TEST(gfx_gpu_offers_a_fixed_host_8_bits_from_minor_7)
 {
     for (int32_t depth = 8; depth <= 32; depth = depth == 8 ? 15 : depth == 16 ? 32 : depth + 1) {
         fixed_screen(S, 8, 8, depth);
@@ -994,7 +994,7 @@ TEST(gfx_gpu_offers_a_fixed_host_8_bits_from_minor_6)
     }
 
     host_in(S, QX_SHADER_MSL, false);
-    fake.minor = 5;
+    fake.minor = 6;
     CHECK(!GPU_CALL("display.open", I(8), I(8), I(8), I(0)).error);
     CHECK(!(offered & 1 << QX_SHADER_FIXED));
 }
@@ -1133,7 +1133,7 @@ TEST(gfx_gpu_gives_a_fixed_hosts_lookup_once_a_light)
     CHECK(given == 2 && !memcmp(first, lookup, sizeof first));
 }
 
-/* On a fixed host from minor 6 an 8-bit canvas is INDEX: row 0 sent as COLOURS when it changed,
+/* On a fixed host from minor 7 an 8-bit canvas is INDEX: row 0 sent as COLOURS when it changed,
    a shape's colour its index in r, g and b, BLEND the host's at the draw's alpha, SMOOTH nearest.
    Once it was RGBA, a shape its colour through row 0. */
 TEST(gfx_gpu_draws_a_fixed_hosts_8_bit_canvas_in_indices)
@@ -1357,11 +1357,11 @@ TEST(gfx_gpu_reads_back_a_root_before_its_levels)
     CHECK(upload_word((uint32_t)s, 1, 4) == 4);
 }
 
-/* A host before minor 7 is given no levels: it would put a level's texels in level 0. */
-TEST(gfx_gpu_gives_levels_from_minor_7)
+/* A host before minor 8 is given no levels: it would put a level's texels in level 0. */
+TEST(gfx_gpu_gives_levels_from_minor_8)
 {
     host_in(S, QX_SHADER_MSL, false);
-    fake.minor = 6;
+    fake.minor = 7;
     CHECK(!GPU_CALL("display.open", I(8), I(8), I(32), I(0)).error);
     const int32_t s = GPU_CALL("surface.new", I(16), I(16)).result.i;
 

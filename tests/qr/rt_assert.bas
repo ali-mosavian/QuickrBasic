@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' assert in a program: a false one stops it with its line
 let x = 3
 assert x = 3

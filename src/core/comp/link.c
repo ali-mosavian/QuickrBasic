@@ -12,6 +12,10 @@
  * found goes on the ledger, whose first error link_check raises before the run starts. A run compiles and
  * resolves nothing but the direct line.
  *
+ * The direct line's literals are copied to link.text (link_texts): its text, in comp.cbuf or
+ * cons.inbuf, is reused (the editor's highlighter, the next line typed) while a stop in a
+ * procedure it called is kept, and CONT runs the rest of it.
+ *
  * # asm structure (retired/asm32/comp/link.asm)
  * | asm | here | |
  * |---|---|---|
@@ -51,6 +55,7 @@
 #include "mem/scope.h"
 #include "mem/symbols.h"
 #include "plat/pmem.h"
+#include "util/grow.h"
 #include "vm/exec.h"
 #include "vm/flow.h"
 
@@ -331,6 +336,30 @@ bool link_xlate(Comp *const C, Addr *where)
     return true;
 }
 
+bool link_texts(Comp *const C)
+{
+    uint8_t *const code = at(C->link->code);
+    uint32_t n = 0;
+
+    for (const uint8_t *op = code; *op != O_EOL; op += flow_opsize(op))
+        if (*op == O_S_LD_TXT)
+            n += op[1];
+
+    if (!GROW(C->link->text, C->link->textcap, n + 1)) /* "" too: never null */
+        return false;
+
+    uint32_t used = 0;
+
+    for (uint8_t *op = code; *op != O_EOL; op += flow_opsize(op))
+        if (*op == O_S_LD_TXT) {
+            memcpy(C->link->text + used, at(load32(op + 2)), op[1]);
+            store32(op + 2, addr_of(C->link->text + used));
+            used += op[1];
+        }
+
+    return true;
+}
+
 /* A stream's map: its entries before its code, their count just before the code. */
 static Stmt *map_of(const Addr code, uint32_t *const count)
 {
@@ -400,11 +429,13 @@ static bool jump_dest(const Comp *const C, Jump *const j)
     j->dest = dest;
 
     /* Jump threading: a target that only ends its line is the next line's start. A jump does the
-       line end's STOP check and drops the temporaries itself. */
+       line end's STOP check and drops the temporaries itself. Not into another file's lines: what
+       runs after a module's last is the link's (qr/qlink.c's chain), not the store's order. */
     while (j->line != DLINE && line_end(rd8(C->allo->cache + j->dest))) {
         const uint32_t next = j->line + prog_line(C->prog, j->line)->len;
+        const Line *const to = prog_line(C->prog, next);
 
-        if (!prog_line(C->prog, next)->len) /* the program's end: END's */
+        if (!to->len || to->file != prog_line(C->prog, j->line)->file) /* the end: END's */
             break;
 
         j->line = next;
@@ -916,13 +947,18 @@ static void link_natives(Comp *const C)
     }
 }
 
-void link_prepare(Comp *const C)
+void link_paired(Comp *const C)
 {
     fold_clear(C);
     blok_pair(C->blok, C->prog, C->symb, C->fault);
     symb_size(C->symb, C->blok->nnames);
     decl_defevents(C->decl, C->scop, C->symb, C->prog); /* the typed lines' DEFtypes too */
     link_procvars(C);
+}
+
+void link_prepare(Comp *const C)
+{
+    link_paired(C);
     link_natives(C);
 
     /* room for the code first, by the store's size (a large program's code is about 0.9 of it):
@@ -995,6 +1031,15 @@ static void build(Comp *const C)
 }
 
 void link_raise(Comp *const C) { each_error(C, raise_one, C->fault); }
+
+void link_final(Comp *const C)
+{
+    LinkGuest *const g = C->guest;
+    C->guest = nullptr;
+
+    if (g)
+        g->done(g);
+}
 
 void link_start(Comp *const C)
 {

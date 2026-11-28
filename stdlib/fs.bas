@@ -1,15 +1,19 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' fs: files, each error a value. A File closes itself when it ends, or at close().
 import text
 
 private native function file_open(path as string, mode as string) as int
 private native function file_read(n as int, count as int) as string
+private native function file_read_into[T](n as int, mut a as T[]) as int
 private native function file_write(n as int, s as string) as int
 private native function file_seek(n as int, at as int) as int
 private native function file_size(n as int) as int
 private native function file_close(n as int)
 private native function file_list(pattern as string) as string
 private native function error_text(err as int) as string
+
+private const string_max = 32767 ' a string's bytes at most
+private const too_long = 15      ' String too long's number
 
 ' an open file: its number, as OPEN's; 0 closed
 type File
@@ -25,6 +29,14 @@ type File
     ' count bytes at most from the file's place, fewer at its end
     fn read(self, count as int) as string
         return file_read(self.n, count)
+    end fn
+
+    ' a filled from the file's place, its elements' bytes as they lie in memory (little-endian):
+    ' the whole elements read, fewer at its end
+    fn read_into[T](self, mut a as T[]) as int or Error
+        let n = file_read_into(self.n, a)
+        if n < 0 then return Error(-n, f"read: {error_text(-n)}")
+        return n
     end fn
 
     fn write(self, s as string) as bool or Error
@@ -55,9 +67,12 @@ type File
 end type
 
 ' the whole file as a string
+' the file at path whole; an Error past a string's length
 function read_text(path as string) as string or Error
     let f = File.open(path)?
-    return f.read(f.size())
+    let n = f.size()
+    if n > string_max then return Error(too_long, f"{path}: {error_text(too_long)}")
+    return f.read(n)
 end function
 
 function write_text(path as string, s as string) as bool or Error
@@ -68,9 +83,10 @@ function write_text(path as string, s as string) as bool or Error
     return true
 end function
 
-' the names of the files matching pattern, wildcards * and ?
-function list(pattern as string = "*.*") as string[]
+' the names of the files matching pattern, wildcards * and ?, in order
+function list(pattern as string = "*.*") as list[string]
     var names = text.split(file_list(pattern), text.chr(10))
     names.pop()
+    names.sort() ' the directory's order differs by platform
     return names
 end function

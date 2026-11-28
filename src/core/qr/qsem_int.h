@@ -72,7 +72,7 @@ typedef struct {
     QFn *in;
 } QLend;
 
-typedef struct {
+struct QSem {
     QProg *prog;
     QMem *mem;
     QBind *binds;
@@ -106,7 +106,8 @@ typedef struct {
     QScopeAt *at;    /* the last statement's names in sight, QProg.keep */
     QType inst;      /* a generic record's instance being made, its errors named for it */
     const QFn *body; /* the method whose body is inlined, its errors named for it; null none */
-} QSem;
+    uint32_t site;   /* the call body is inlined at: where its uses and moves are (qsem_useat) */
+};
 
 /* The names in sight at a statement: its fn's, a block's, the modules' (QSemKeep's). */
 struct QScopeAt {
@@ -154,12 +155,25 @@ void qsem_bindty(QSem *S, const QTok *name, QType t);
 QVar *qsem_var(QSem *S, const QTok *name, QType type, QVarKind kind);
 QVar *qsem_root(const QExpr *e);
 uint32_t qsem_at(const QSem *S, const QTok *t);
+/* Where a use or a move at t is: t's place, or an inlined body's call's. */
+uint32_t qsem_useat(const QSem *S, const QTok *t);
 
 /* qsem_type.c */
 QType qsem_scalar(const QTok *t);
 bool qsem_owns(const QSem *S, QType t);
 QType qsem_newty(QSem *S, QTyKind kind);
-QType qsem_listof(QSem *S, QType elem, uint32_t count);
+/* elem's array of dims dimensions, counts each one's, null a dynamic one: list[elem] when it grows;
+   interned. */
+QType qsem_shapedof(QSem *S, QType elem, uint8_t dims, const uint32_t *counts, bool grows);
+/* Can an array at at have n dimensions? Else it says why. */
+bool qsem_dimsfit(QSem *S, const QTok *at, uint32_t n);
+/* Does a T[] parameter of type param take an array of type t, another, by its descriptor: a
+   T[n, m] of its elements? */
+bool qsem_lendable(const QSem *S, QType t, QType param);
+/* elem's array of count, 0 a dynamic one, of one dimension: qsem_shapedof's. */
+QType qsem_arrayof(QSem *S, QType elem, uint32_t count, bool grows);
+/* The type e names where a value is written: Name, m.Name, int, Name[T]; QY_VOID none. */
+QType qsem_typevalue(QSem *S, const QExpr *e);
 QType qsem_tupleof(QSem *S, const QType *items, uint32_t n);
 QType qsem_wrapof(QSem *S, QTyKind kind, QType val);
 QType qsem_fnof(QSem *S, const QType *params, uint32_t n, QType result);
@@ -343,7 +357,7 @@ void qsem_stmt(QSem *S, QStmt *s);
 
 /* qsem_decl.c */
 void qsem_consts(QSem *S, const QMod *m);
-void qsem_types(QSem *S);
+void qsem_types(QSem *S, const bool *in);
 void qsem_typed(QSem *S, QType t);
 void qsem_signature(QSem *S, QFn *f);
 bool qsem_isdrop(const QFn *f);
@@ -356,7 +370,8 @@ QType qsem_given_types(QSem *S, QType g, QTypeEx *const *items, uint32_t n, cons
 
 /* qsem_mod.c */
 void qsem_module(QSem *S, uint32_t k);
-void qsem_scopes(QSem *S);
+void qsem_newscopes(QSem *S);
+void qsem_scopes(QSem *S, const bool *in);
 void qsem_exports(QSem *S);
 
 #endif

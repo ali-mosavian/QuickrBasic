@@ -1,3 +1,0 @@
-SUB hi
-PRINT "hi"
-END SUB

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 var s = 0
 for i in 0..3000000
     select case i mod 10

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' calls: arguments, defaults, names, results
 function f(a as int, b = 2) as int
     return a + b

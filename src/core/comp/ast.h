@@ -37,7 +37,7 @@ typedef enum : uint8_t {
     N_CASECMP,
 } NodeKind;
 
-enum { AST_CHUNK = 0x1000, LIT_MAX = 8 };
+enum { AST_CHUNK = 0x1000, LIT_MAX = 16 }; /* FX.IDX's operands */
 
 /* N_CONV's conversion of its child: to an INT, a FLOAT, a DOUBLE, a string, a byte, an address. */
 enum : uint8_t { CV_INT, CV_FLT, CV_DBL, CV_STR, CV_BYTE, CV_ADDR };
@@ -129,7 +129,8 @@ struct Node {
     uint8_t conv;  /* an N_XFN's argument: its kind (I F D S W G X, R an array's id); N_CASECMP: the
                       SELECT's T_* */
     uint8_t mode;  /* N_XFN: XM_*; N_CALL: CALL_*; N_STORE: a CONST's, folded; N_CASECMP: 1 its
-                      compare, 0 an error's: the load and the expression a, if any */
+                      compare, 0 an error's: the load and the expression a, if any; N_ARG: 1 an
+                      array for a Quickr list, its shape checked */
     uint8_t nargs; /* N_ELEM, N_FN, N_XFN, N_REF, N_CALL: the arguments; N_OP, N_JUMP: lit's operand
                       bytes */
     bool val;      /* a statement's node whose code leaves a value of type: a CALL's, a load */

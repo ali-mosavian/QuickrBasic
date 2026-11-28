@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a module: declarations alone, public ones exported
 const MAXW = 319
 var plotted = 0
@@ -25,7 +25,7 @@ end function
 function norm(p as Point) as int
     return p.x + p.y
 end function
-function largest[T](a as T[]) as T
+function largest[T](a as list[T]) as T
     var best = a[0]
     for x in a
         if x > best then best = x
@@ -37,7 +37,7 @@ function evens(n as int) yields int
         yield i
     next
 end function
-function apply(xs as int[], f as function(int) as int) as int
+function apply(xs as list[int], f as function(int) as int) as int
     var total = 0
     for x in xs
         total += f(x)

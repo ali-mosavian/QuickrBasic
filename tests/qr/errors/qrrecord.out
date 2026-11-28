@@ -2,4 +2,4 @@ qrrecord.bas:3: Type mismatch
   dim b as odd.Bag
            ^
 `odd.Bag` is a Quickr record with a field QBasic has no equal for, or a private one.
-Keep the record's fields public, and to int, short, single, double, string, bool and records of them.
+Keep the record's fields public, and to int, short, ubyte, single, double, string, bool, records of them and fixed arrays and lists of those.

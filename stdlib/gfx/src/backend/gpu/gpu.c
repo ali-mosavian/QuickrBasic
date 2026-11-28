@@ -118,7 +118,7 @@ bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight, Palette *
 
     g->shader = s->shader;
     g->fixed = s->shader == QX_SHADER_FIXED;
-    g->mipmaps = qx_host->minor >= 7;
+    g->mipmaps = qx_host->minor >= 8;
     g->pal = pal;
     mem_fill(g->made, 0, sizeof g->made);
 

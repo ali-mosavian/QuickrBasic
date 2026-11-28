@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' modules: import, from, as, packages, public, cycles and their vars' start
 import gfx
 import pkg.a
@@ -19,11 +19,11 @@ print int(gfx.Shade.light); " "; gfx.Shade.dark = gfx.Shade.dark
 print pkg.a.quad(3); " "; dbl(5); " "; bee.twice(1)
 gfx.plotted = 10
 print gfx.plotted
-var xs as int[]
+var xs as list[int]
 xs.push(3)
 xs.push(9)
 xs.push(4)
-var ss as string[]
+var ss as list[string]
 ss.push("b")
 ss.push("c")
 print largest(xs); " "; gfx.largest(ss)

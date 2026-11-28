@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' T or none, T or Error, or else, x?, is narrowing, dict get
 const EMPTY = 1
 const BIG = 2
@@ -56,11 +56,11 @@ print g or else 0; " "; none_ or else 0; " "; none_ is none
 var names as dict[int, string]
 names[3] = "three"
 print names.get(3) or else "?"; " "; names.get(4) or else "?"
-function first(xs as string[]) as string or none
+function first(xs as list[string]) as string or none
     if len(xs) = 0 then return none
     return xs[0]
 end function
-var xs as string[]
+var xs as list[string]
 print first(xs) or else "nothing"
 xs.push("hi")
 print first(xs) or else "nothing"
@@ -87,7 +87,7 @@ end function
 branches("ab", 6)
 branches("", 3)
 ' in a type, or binds last: a list of optionals; a function whose result is optional
-var opts as (int or none)[]
+var opts as list[int or none]
 opts.push(none)
 opts.push(4)
 print opts[0] or else -1; " "; opts[1] or else -1

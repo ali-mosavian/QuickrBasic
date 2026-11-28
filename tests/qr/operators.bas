@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' function operator: + - * / = < on records, inlined when one return; one
 ' an operator and pair of types, the record on either side; unary -
 from shapes import Size
@@ -61,7 +61,7 @@ function operator +(a as Name, b as Name) as Name
     return Name(a.first + b.first, a.last + b.last)
 end function
 
-function largest[T](a as T[]) as T
+function largest[T](a as list[T]) as T
     var best = a[0]
     for x in a
         if x > best then best = x
@@ -88,7 +88,7 @@ print p.x; " "; p.y
 let q = (p + v) * 3 + p
 print q.x; " "; q.y; " "; (q - p).x; " "; (q / 2).y
 print p = p; " "; p <> v; " "; p < v; " "; p > v; " "; p <= p; " "; p >= v
-var vs as Vec[]
+var vs as list[Vec]
 vs.push(Vec(1, 9))
 vs.push(Vec(4, 0))
 vs.push(Vec(4, 2))

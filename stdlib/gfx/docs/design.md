@@ -364,12 +364,12 @@ ESSL 3.00 for WebGL2 (`shaders.h`), committed so a build needs neither. `display
 languages it brings, and the host answers with the one it takes.
 
 A card of DOS's time has no shaders: its pipeline is fixed, a texel times a colour, keyed, blended
-and depth tested. The list names that pipeline too (minor 5), and gfx works out on the CPU what its
+and depth tested. The list names that pipeline too (minor 6), and gfx works out on the CPU what its
 shader would: a vertex's colour lit, a disc as its rows. DOS plays the list through the driver for
 the card on the bus, loaded from `lib/drivers/` as the screen opens: only that one
 (`src/plat/dos32/accel`).
 
-From minor 6 a fixed host draws 8 bits too. An 8-bit root is an INDEX texture, a byte a texel on
+From minor 7 a fixed host draws 8 bits too. An 8-bit root is an INDEX texture, a byte a texel on
 the card, drawn through the card's 256-entry texture palette. gfx sends that palette's words per
 draw (LOOKUP): the lut's indices into an 8-bit target, the row's colours into any other. A palette
 change costs 1 KB, not the textures sent again, so fades and cycling stay cheap. A card shows
@@ -378,7 +378,7 @@ targets hold each index as a 565 word both of whose bytes are the index, read ba
 at 8 bits are the card's, not the palette's: on the screen in colour, elsewhere drawn where alpha is
 at least a half. SMOOTH at 8 bits is nearest. Read back, the screen is the nearest index.
 
-From minor 7 a texture has levels: TEXTURE gives their count, UPLOAD the level it writes.
+From minor 8 a texture has levels: TEXTURE gives their count, UPLOAD the level it writes.
 
 ## The host's side
 

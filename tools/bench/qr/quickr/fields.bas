@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 type Vec
     x as int
     y as int

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 let s = "the quick brown fox jumps over the lazy dog"
 var n = 0
 for r in 0..20000

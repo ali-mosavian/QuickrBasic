@@ -190,7 +190,7 @@ static Node *subscripts(Comp *const C, uint32_t *const n)
 
 /* An element of fixed array field f, ours, its ( s {, s} ) at comp.p, the first subscript the
    fastest: its offset in f by the constant subscripts; for the others, at's index steps ( addr s --
-   addr ) FX.IDX lb count stride. Subscript out of range: a constant past its bounds, a count not
+   addr ) FX.IDX 0 lb count stride. Subscript out of range: a constant past its bounds, a count not
    f's. */
 static uint32_t element(Comp *const C, Node *const at, const Field *const f)
 {
@@ -224,6 +224,7 @@ static uint32_t element(Comp *const C, Node *const at, const Field *const f)
         } else {
             step(&end, s);
             Node *const x = step_op(C, &end, O_FX_IDX);
+            comp_dword(x, 0);
             comp_dword(x, (uint32_t)d->lb);
             comp_dword(x, d->count);
             comp_dword(x, (uint32_t)stride);
@@ -234,6 +235,21 @@ static uint32_t element(Comp *const C, Node *const at, const Field *const f)
     }
 
     return (uint32_t)off;
+}
+
+/* off bytes on from at's place: into its last step's offset if an FX.IDX, 0 left; else off. */
+static uint32_t indexed(Node *const at, const uint32_t off)
+{
+    Node *last = at->a;
+
+    while (last && last->next)
+        last = last->next;
+
+    if (!last || last->kind != N_OP || last->op != O_FX_IDX)
+        return off;
+
+    store32(last->lit, load32(last->lit) + off);
+    return 0;
 }
 
 /* An element of dynamic array field f, ours, its cell off bytes into at's place: its ( s {, s} ) at
@@ -347,7 +363,7 @@ static RecRef path(Comp *const C, Node *const at, uint32_t t, const uint8_t *tex
         C->p = decl_item(C->p + 1);
     }
 
-    return fieldref(C, f, off);
+    return fieldref(C, f, indexed(at, off));
 }
 
 /* An N_REF of op and variable id; an element's subscripts follow at comp.p. */
@@ -765,6 +781,10 @@ static Node *arrayarg(Comp *const C, const uint32_t par)
     return argnode(C, PA_ARRAY, call ? call : ref_cell(C, id), id);
 }
 
+/* Array argument a for a Quickr T[] parameter: its shape checked when run. A fixed array field's
+   descriptor is a field cell, which a resize() of it refuses. */
+static void listarg(Node *const a) { a->mode = 1; }
+
 /* A record parameter's argument, by P.REF: a record, an element of a record array, a record field,
    of its TYPE. */
 static Node *recarg(Comp *const C, const uint32_t par)
@@ -963,7 +983,12 @@ static void args(Comp *const C, Node *const n, const Proc *const pr)
         }
 
         const bool byval = pr->params[i].byval || def;
-        ast_link(n, &last, arg(C, pr->params[i].var, byval));
+        Node *const a = arg(C, pr->params[i].var, byval);
+
+        if (pr->flags & PF_FOREIGN && symb_is_array(C->symb, pr->params[i].var))
+            listarg(a);
+
+        ast_link(n, &last, a);
     }
 }
 

@@ -1,0 +1,2 @@
+strlong.bas:6: String too long
+      s = s + f"{i:>8000}"

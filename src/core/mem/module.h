@@ -33,10 +33,12 @@ typedef struct {
     uint64_t off[8];
     bool native;
     const struct Dialect
-        *dialect;   /* a QBasic program's module of another (io/dialect.h); else null */
+        *dialect;   /* a module of another dialect than QBasic (io/dialect.h); else null */
     uint16_t file;  /* such a module's lines' file */
     uint32_t clash; /* a name two of such a module's publics spell, case aside; 0 none */
     bool edited;
+    uint32_t stage; /* the dialect crossings on its imports' paths at most: declared after those
+                       of a lower stage (modu_stages) */
     bool ran;
     uint32_t handler;
     ModuRead read;
@@ -75,9 +77,15 @@ uint32_t modu_module(Modu *mu, const char *path);
 /* The module at path, modu_count none. */
 uint32_t modu_find(const Modu *mu, const char *path);
 uint32_t modu_count(const Modu *mu);
+/* The files known: the next one's number. */
+uint32_t modu_files(const Modu *mu);
 const char *modu_module_path(const Modu *mu, uint32_t m);
 /* Module from imports module to. */
 void modu_import(Modu *mu, uint32_t from, uint32_t to);
+/* Does a module of another dialect import module m? */
+bool modu_crossed(const Modu *mu, uint32_t m);
+/* Each module's stage, modu_order's order made first: the highest stage. */
+uint32_t modu_stages(Modu *mu);
 /* Module m's lines start past line, its LF_TOP line, as read. */
 void modu_top(Modu *mu, uint32_t m, uint32_t line);
 /* Module m's LF_TOP line as read; the main's 0. */

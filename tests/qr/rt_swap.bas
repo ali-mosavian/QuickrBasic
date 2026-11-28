@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a.swap(i, j): numbers, strings, records with strings, a fixed
 ' array field and variable; an index past the end out of range
 type P
@@ -6,9 +6,9 @@ type P
     v as int
     fx as short[3]
 end type
-var a as int[]
-var s as string[]
-var ps as P[]
+var a as list[int]
+var s as list[string]
+var ps as list[P]
 for i in 1..5
     a.push(i)
 next

@@ -276,7 +276,7 @@ static const QBind *qsem_capture(
     if (S->binds[i].var) {
         QVar *const orig = S->binds[i].var;
         QVar *const root = orig->place ? qsem_root(orig->place) : orig;
-        const uint32_t at = qsem_at(S, use);
+        const uint32_t at = qsem_useat(S, use);
         root->last = at > root->last ? at : root->last;
     }
 
@@ -333,4 +333,9 @@ uint32_t qsem_at(const QSem *const S, const QTok *const t)
 {
     const QMod *const m = &S->prog->mods[qsem_modof(S, t)];
     return m->base + (uint32_t)(t - m->toks);
+}
+
+uint32_t qsem_useat(const QSem *const S, const QTok *const t)
+{
+    return S->body ? S->site : qsem_at(S, t);
 }

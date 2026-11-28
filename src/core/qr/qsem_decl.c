@@ -120,12 +120,12 @@ static void qsem_members(QSem *const S, QStmt *const s, const QType t)
         }
 }
 
-/* Each type and enum: a type, its name bound, its fields and values declared; a generic record's
-   at each instance. */
-void qsem_types(QSem *const S)
+/* Each type and enum of the modules in: a type, its name bound, its fields and values declared;
+   a generic record's at each instance. */
+void qsem_types(QSem *const S, const bool *const in)
 {
     for (QStmt *s = S->prog->first; s; s = s->next) {
-        if (s->kind != QS_TYPE && s->kind != QS_ENUM)
+        if ((s->kind != QS_TYPE && s->kind != QS_ENUM) || !in[qsem_modof(S, s->tok)])
             continue;
 
         const QType t = s->ty = qsem_newty(S, s->kind == QS_TYPE ? QT_REC : QT_ENUM);
@@ -175,7 +175,7 @@ static void qsem_fieldtype(QSem *const S, const QType t, QField *const f)
                             : ft;
 
     if (qast_record(S->prog, inner) &&
-        (!qast_compound(ft) || qast_ty(S->prog, ft)->kind != QT_LIST)) {
+        (!qast_compound(ft) || qast_ty(S->prog, ft)->kind != QT_DYN)) {
         qsem_typed(S, inner);
 
         if (qast_ty(S->prog, inner)->state == 1) {
@@ -402,7 +402,7 @@ static bool qsem_holds_ty(QSem *const S, const QType t, const QType of)
     if (y->seen)
         return false;
 
-    const bool list = y->kind == QT_LIST || y->kind == QT_ARRAY;
+    const bool list = y->kind == QT_DYN || y->kind == QT_ARRAY;
     const bool wrap = y->kind == QT_OPT || y->kind == QT_RES;
     const uint32_t n = list || wrap ? 1 : y->kind == QT_REC || y->kind == QT_TUPLE ? y->nfields : 0;
     bool any = false;
@@ -603,20 +603,62 @@ static bool qsem_nativeok(const QType t)
     return qast_numeric(t) || t == QY_BOOL || t == QY_STRING || t == QY_ERROR;
 }
 
-/* Native fn f's entry, and its types: numbers, bools and strings, by value. */
+/* Does entry n's code take its arguments' numbers, whichever they are (QN_NUM, QN_ET)? */
+static bool qsem_bynumber(const QNat *const n)
+{
+    for (uint32_t i = 0; i < n->n; i++)
+        if (n->steps[i].kind == QN_NUM || n->steps[i].kind == QN_ET)
+            return true;
+
+    return false;
+}
+
+/* Does entry n take its argument k as an array (QN_ET)? */
+static bool qsem_natarray(const QNat *const n, const uint32_t k)
+{
+    for (uint32_t i = 0; i < n->n; i++)
+        if (n->steps[i].kind == QN_ET && n->steps[i].n == (int32_t)k)
+            return true;
+
+    return false;
+}
+
+/* Is t an array or a list of numbers? */
+static bool qsem_numbers(const QSem *const S, const QType t)
+{
+    return qast_array(S->prog, t) && qast_numeric(qast_ty(S->prog, t)->elem);
+}
+
+/* Native fn f's entry, and its types: numbers, bools and strings, by value; an array of numbers,
+   mut too, where the entry takes one; a generic's entry takes numbers, any of them. */
 static void qsem_native(QSem *const S, QFn *const f)
 {
     f->nat = qnat_find(f->name->text, f->name->len);
 
     if (!f->nat)
         qsem_say(S, f->name, "no native entry is named ", qsem_text(S, f->name), nullptr);
+    else if (qsem_bynumber(f->nat)) {
+        for (uint32_t k = 0; k < f->npar; k++) {
+            const QType t = f->params[k].var->type;
+
+            if (!qast_numeric(t) && !qsem_numbers(S, t) && t != QY_ERROR) {
+                qsem_say(S, f->name, qsem_text(S, f->name), " takes numbers", nullptr);
+                break;
+            }
+        }
+    } else if (f->of)
+        qsem_say(S, f->name, qsem_text(S, f->name), "'s native entry is not generic", nullptr);
 
     const bool plain = f->result == QY_VOID || f->result == QY_ERROR || qsem_nativeok(f->result);
 
     for (uint32_t k = 0; k < f->npar; k++) {
         const QParam *const p = &f->params[k];
+        const QType t = p->var->type;
 
-        if (p->mut || !qsem_nativeok(p->var->type))
+        if (f->nat && qsem_natarray(f->nat, k)) {
+            if (!qsem_numbers(S, t) && t != QY_ERROR)
+                qsem_say(S, p->name, "this native function takes an array of numbers", nullptr);
+        } else if (p->mut || !qsem_nativeok(t))
             qsem_say(
                 S,
                 p->name,

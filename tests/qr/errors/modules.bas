@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' modules' errors: each at its own file and line
 import lib
 import nope

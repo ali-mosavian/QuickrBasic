@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' narrow fields and elements: each type's range kept, by value and by mut
 type Narrow
     b as byte
@@ -33,8 +33,8 @@ low(n.bs[2])
 n.uss[1] = 0
 high(n.uss[0])
 print n.bs[2]; " "; n.uss[0]; " "; n.uss[1]
-var bs as byte[]
-var uss as ushort[]
+var bs as list[byte]
+var uss as list[ushort]
 bs.push(-128)
 bs.push(127)
 uss.push(65535)

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' integer types: what the checker refuses
 var b as byte = 1
 var ub as ubyte = 2

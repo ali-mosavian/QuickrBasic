@@ -31,6 +31,7 @@ static const PgfxPlayer player = {
     .close = js_gpu_close,
     .play = js_gpu_play,
     .read = player_read,
+    .hide = js_gpu_hide,
 };
 
 [[gnu::constructor]]

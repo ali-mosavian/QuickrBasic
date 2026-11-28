@@ -30,9 +30,10 @@
 #define QX_EXPORT __attribute__((visibility("default")))
 #endif
 
-/* Minor 4 adds the GPU list's depth (qxlist.h); minor 5 its fixed pipeline (QX_SHADER_FIXED);
-   minor 6 a fixed pipeline's INDEX targets, LOOKUP and COLOURS; minor 7 a texture's levels. */
-enum { QX_ABI = 1, QX_MINOR = 7 };
+/* Minor 4 adds the GPU list's depth (qxlist.h); minor 5 a call's error said with why; minor 6
+   the list's fixed pipeline (QX_SHADER_FIXED); minor 7 a fixed pipeline's INDEX targets, LOOKUP
+   and COLOURS; minor 8 a texture's levels. */
+enum { QX_ABI = 1, QX_MINOR = 8 };
 
 typedef struct QxCall QxCall;
 typedef void QX_CALL QxFn(QxCall *c);
@@ -68,7 +69,7 @@ typedef struct {
 } QxAudio;
 
 /* A shading language a GPU's host takes (qxlist.h's PIPELINE): MSL 2.0, ESSL 3.00 (WebGL2's),
-   SPIR-V 1.0 (Vulkan's); FIXED (minor 5), none: the host's fixed-function pipeline. */
+   SPIR-V 1.0 (Vulkan's); FIXED (minor 6), none: the host's fixed-function pipeline. */
 typedef enum : uint8_t {
     QX_SHADER_MSL = 1,
     QX_SHADER_ESSL,
@@ -147,7 +148,7 @@ typedef struct QxHost {
        host is done with the list's memory. */
     void(QX_CALL *gpu_play)(const uint32_t *list, uint32_t words);
     /* w by h pixels at x, y of a texture, as played so far, into out: bytes R, G, B and A, rows
-       top first; an INDEX texture's index in each (minor 6). */
+       top first; an INDEX texture's index in each (minor 7). */
     void(QX_CALL
              *gpu_read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
     /* Minor 3. The monitors, numbered from 1. */
@@ -160,6 +161,8 @@ typedef struct QxHost {
     /* The next thing the host saw since gfx_open: false, none. A window closed ends the run, unless
        the extension has asked since gfx_open: then it is QUIT. */
     bool(QX_CALL *gfx_event)(QxEvent *e);
+    /* Minor 5. The call's error (QxCall's) and why: text, said after the error's message. */
+    void(QX_CALL *error_why)(QxCall *c, uint8_t error, const char *text);
 } QxHost;
 
 /* One call: its arguments; a FUNCTION's result; an error raised at the calling line once the
@@ -189,7 +192,7 @@ typedef struct {
     const QxType *types;
     uint32_t ntypes;
     void(QX_CALL *start)(void); /* a run starts */
-    void(QX_CALL *stop)(void);  /* it ends: END, an error, Break, CHAIN, an edit */
+    void(QX_CALL *stop)(void);  /* it ends: END, an error, CHAIN, its stop dropped (an edit) */
 } QxModule;
 
 typedef const QxModule *QX_CALL QxInit(const QxHost *host);

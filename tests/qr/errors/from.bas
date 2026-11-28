@@ -1,3 +1,3 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a from line that doesn't parse imports nothing: it crashed
 from = 3

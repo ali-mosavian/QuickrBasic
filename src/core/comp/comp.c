@@ -544,13 +544,14 @@ uint16_t comp_fix(const Comp *const C, const uint32_t id, const bool array)
     return b ? b->fix[array] : 0;
 }
 
-/* var_decl: under OPTION EXPLICIT, name declared, or a procedure's; else Variable not declared. */
-static void declared(Comp *const C, const uint32_t name)
+/* var_decl: under OPTION EXPLICIT, name declared, or a procedure's; else Variable not declared. A
+   scalar's is not its array's: f = g of two arrays names two scalars. */
+static void declared(Comp *const C, const uint32_t name, const bool array)
 {
     if (!(decl_opts(C->decl, C->module) & DO_EXPLICIT) ||
         symb_name(C->symb, name)->flags & (NM_SUB | NM_FUNC | NM_FN))
         return;
-    if (!scop_known(C->scop, name))
+    if (!(array ? scop_known(C->scop, name) : scop_known_scalar(C->scop, name)))
         fault_error(C->fault, E_VND);
 }
 
@@ -602,7 +603,7 @@ uint32_t comp_var(Comp *const C, const uint8_t shape, const uint32_t et)
             type = C->symb->deft[upcase(first) - 'A'];
     }
 
-    declared(C, name);
+    declared(C, name, kind != 0);
 
     if (type >= ET_REC) { /* a record: ref_recarray's, recvar's kind */
         if (!kind)

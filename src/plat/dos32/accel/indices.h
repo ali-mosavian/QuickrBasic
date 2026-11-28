@@ -1,4 +1,4 @@
-/* INDEX textures on a card that holds colours (qx/qxlist.h's minor 6): what a target holds for an
+/* INDEX textures on a card that holds colours (qx/qxlist.h's minor 7): what a target holds for an
  * index, and the palette an INDEX texel is drawn through into it.
  *
  * # How it works

@@ -101,16 +101,23 @@ static const char *qsem_tyname(QSem *const S, const QType t)
         return y->of ? qsem_join(S, n, "]", "") : n;
     }
 
-    case QT_LIST:
-        return qsem_join(S, qsem_tyname(S, y->elem), "[]", "");
+    case QT_DYN:
+    case QT_ARRAY: { /* list[T], T[], T[,], T[n], T[n, m] */
+        if (y->grows)
+            return qsem_join(S, "list[", qsem_tyname(S, y->elem), "]");
 
-    case QT_ARRAY:
-        return qsem_join(
-            S,
-            qsem_join(S, qsem_tyname(S, y->elem), "[", qsem_uint(S, y->count)),
-            "]",
-            ""
-        );
+        const char *n = qsem_join(S, qsem_tyname(S, y->elem), "[", "");
+
+        for (uint8_t k = 0; k < y->dims; k++)
+            n = qsem_join(
+                S,
+                n,
+                k ? (y->counts ? ", " : ",") : "",
+                y->counts ? qsem_uint(S, y->counts[k]) : ""
+            );
+
+        return qsem_join(S, n, "]", "");
+    }
 
     case QT_MAP:
         return qsem_join(

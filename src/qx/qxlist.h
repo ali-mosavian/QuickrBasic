@@ -13,10 +13,10 @@
  *   when there is none that large, its bytes then undefined.
  * - WRITE id, bytes, pointer: the buffer's first bytes; its others undefined after.
  * - TEXTURE id, w, h, format, levels: made, every byte 0. An RGBA one can be drawn into; a DEPTH
- *   one is a pass's depth target. Levels (minor 7), 1 when not given: level k is w >> k by h >> k.
+ *   one is a pass's depth target. Levels (minor 8), 1 when not given: level k is w >> k by h >> k.
  * - FREE id: the texture.
  * - UPLOAD id, x, y, w, h, pitch, pointer, level: h rows of w texels of the texture's format,
- *   pitch bytes each, into its level (minor 7), 0 when not given; x, y that level's.
+ *   pitch bytes each, into its level (minor 8), 0 when not given; x, y that level's.
  * - PIPELINE id, blend, stride, samplers, vertex code, fragment code, attributes: how a DRAW with
  *   it draws. Code is three words, its bytes then a pointer, in the language gfx_open gave
  *   (QxScreen.shader); the vertex code's uniform block is binding 0, the fragment code's
@@ -28,7 +28,7 @@
  *   KEEP writes no colour. A pixel drawn is opaque. Blend's second byte is its depth (QxDepth),
  *   0 none: a pixel's depth is its z over w in clip space, 0 to 1. A pipeline with depth draws
  *   only in a pass with a depth target; one without, in any.
- *   A FIXED one (minor 5) has no code: its first two code words are QX_FIXED_SOURCE's and
+ *   A FIXED one (minor 6) has no code: its first two code words are QX_FIXED_SOURCE's and
  *   QX_FIXED_FLAGS', the rest 0. Its attributes are known by location: QX_FIXED_AT_POSITION,
  *   FLOAT4, x and y the target's pixels with a pixel's centre at halves, as GL's, z its depth as it
  *   is, w 1, or the divisor texels go in perspective by; QX_FIXED_AT_TEXEL, FLOAT2, in texels;
@@ -37,12 +37,12 @@
  *   draw's.
  *   Its texel is its draw's first texture's. It reads no uniforms. A host may hold fewer bits of
  *   a channel than the texture: what it reads back is what it holds. It may show only the
- *   first RGBA texture made of the screen's size, or (minor 6) INDEX one.
- *   Minor 6: an INDEX texel i draws as its LOOKUP's word i. Into an INDEX texture a pixel is an
+ *   first RGBA texture made of the screen's size, or (minor 7) INDEX one.
+ *   Minor 7: an INDEX texel i draws as its LOOKUP's word i. Into an INDEX texture a pixel is an
  *   index: a texel's word's low byte, a colour's red; MIX and ADD there are the host's nearest.
  *   An INDEX texture is shown, and may be held, as COLOURS' colours: read back, a pixel held so
  *   is the index nearest its colour.
- * - PASS id, depth: the RGBA texture, or a FIXED pipeline's INDEX one (minor 6), the draws after
+ * - PASS id, depth: the RGBA texture, or a FIXED pipeline's INDEX one (minor 7), the draws after
  *   go into, its pixels kept; depth, if given and not 0, the DEPTH texture of its size they test
  *   and set.
  * - CLIP x, y, w, h: the pass's pixels the draws after may touch.
@@ -51,11 +51,11 @@
  *   buffer indices, triangles of buffer vertices' vertices, through the pipeline; the textures,
  *   a word each, its samplers'; alpha 0 to 255.
  * - SHOW id: the texture is shown.
- * - LOOKUP id, pointer (minor 6, FIXED): the draws after draw an INDEX texel i as lookup id's word
+ * - LOOKUP id, pointer (minor 7, FIXED): the draws after draw an INDEX texel i as lookup id's word
  *   i: into an INDEX texture, an index; into an RGBA one, &HRRGGBB times the vertex's colour. The
  *   pointer, unless null, gives its 256 words first. A lookup, id under QX_LIST_LOOKUPS, is each
  *   index itself until given; the draws, through lookup 0 until a LOOKUP.
- * - COLOURS pointer (minor 6, FIXED): 256 words, &HRRGGBB, an INDEX texture's indices' colours
+ * - COLOURS pointer (minor 7, FIXED): 256 words, &HRRGGBB, an INDEX texture's indices' colours
  *   for the draws and SHOWs after. Black until given.
  * - END.
  */
@@ -109,11 +109,11 @@ typedef enum : uint8_t { QX_BLEND_NONE, QX_BLEND_MIX, QX_BLEND_ADD, QX_BLEND_KEE
    depth, WRITE sets the target's depth where it draws (ALWAYS, without TEST). */
 typedef enum : uint8_t { QX_DEPTH_TEST = 1, QX_DEPTH_WRITE = 2 } QxDepth;
 
-/* A FIXED pipeline's (minor 5). What a pixel is: COLOUR, the vertices' colour; TEXEL, the texel
+/* A FIXED pipeline's (minor 6). What a pixel is: COLOUR, the vertices' colour; TEXEL, the texel
    times it; MASK, the colour, its alpha the texel's times its own. Its flags: KEY, drawn where the
    texel's alpha is at least a half; LINEAR, the four texels round the point mixed, else the one
    under it; WRAP_U, WRAP_V, texels repeat across the rectangle, else the texture's edge's are
-   kept past it; MIPMAP (minor 7), read from the texture's level nearest the texels a pixel
+   kept past it; MIPMAP (minor 8), read from the texture's level nearest the texels a pixel
    steps, LINEAR within it. */
 typedef enum : uint8_t { QX_FIXED_COLOUR = 1, QX_FIXED_TEXEL, QX_FIXED_MASK } QxFixedSource;
 

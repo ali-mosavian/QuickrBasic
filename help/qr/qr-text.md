@@ -12,7 +12,7 @@ Searching, cases, splitting and joining strings.
     hex(n) as string               n in hexadecimal
     number(s) as double            the number s spells
     to_int(s) as int or Error      s as a whole int, else an Error
-    split(s, sep) as string[]      the parts between seps
+    split(s, sep) as list[string]  the parts between seps
     join(parts, sep) as string     the parts, sep between them
 
 See also [Quickr](quickr index), [io](quickr io)
@@ -24,7 +24,7 @@ to_int reads digits with an optional - first; anything else, spaces
 too, is Error 5, and a number past an int Error 6.
 
 ## Example
-    ' OPTION DIALECT QUICKR
+    option dialect quickr
     import text
     let words = text.split("a,b,c", ",")
     print text.join(words, " ")

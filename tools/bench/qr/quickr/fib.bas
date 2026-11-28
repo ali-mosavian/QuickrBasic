@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 function fib(n as int) as int
     if n < 2 then return n
     return fib(n - 1) + fib(n - 2)

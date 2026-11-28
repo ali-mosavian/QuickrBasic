@@ -53,6 +53,9 @@ void cmd_place(Command *const c, const Style *const style, const Place *const wh
 
 bool cmd_log(CmdLog *const log, const Command *const c)
 {
+    if (log->calls++, log->n == CMD_KEPT)
+        return true;
+
     if (!mem_grow((void **)&log->items, &log->cap, log->n + 1, sizeof *c))
         return false;
 
@@ -60,7 +63,7 @@ bool cmd_log(CmdLog *const log, const Command *const c)
     return true;
 }
 
-void cmd_clear(CmdLog *const log) { log->n = 0; }
+void cmd_clear(CmdLog *const log) { log->n = log->calls = 0; }
 
 void cmd_done(CmdLog *const log)
 {

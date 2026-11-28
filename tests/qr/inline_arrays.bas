@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a fixed array inline, a record's or a list's element: assigned and passed whole
 type R
     v as int[3]
@@ -29,7 +29,7 @@ s[1] = "kept"
 r.names = s
 s[1] = "changed"
 print r.names[1]
-var pairs as int[3][]
+var pairs as list[int[3]]
 pairs.push(a)
 pairs.push(r.v)
 pairs[0][0] = 9

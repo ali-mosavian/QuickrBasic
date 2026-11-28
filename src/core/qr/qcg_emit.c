@@ -17,9 +17,12 @@ static const uint8_t qcg_iops[3][6] = {
     {O_I_ADD_U8, O_I_SUB_U8, O_I_MUL_U8, O_I_DIV_U8, O_I_AND_U8, O_I_OR_U8},
 };
 
-static const uint8_t qcg_fops[3][4] = {
+static const uint8_t qcg_fops[5][4] = {
+    /* by cg_fltkind's form */
     {O_F_ADD, O_F_SUB, O_F_MUL, O_F_DIV},
     {O_F_ADD_V, O_F_SUB_V, O_F_MUL_V, O_F_DIV_V},
+    {O_F_ADD_VI, O_F_SUB_VI, O_F_MUL_VI, O_F_DIV_VI},
+    {O_F_ADD_U8, O_F_SUB_U8, O_F_MUL_U8, O_F_DIV_U8},
     {O_F_ADD_F32, O_F_SUB_F32, O_F_MUL_F32, O_F_DIV_F32},
 };
 
@@ -98,11 +101,9 @@ void qcg_arith(Code *const c, uint8_t *const right, const QType w, const uint32_
         return;
     }
 
-    if (w == QY_SINGLE) {
-        form = code_ends_op(c, right, O_F_LD_V, 1 + VCELL) ? 1
-               : code_ends_op(c, right, O_F_LD_F32, 5)     ? 2
-                                                           : 0;
-    } else {
+    if (w == QY_SINGLE)
+        form = cg_fltkind(c, right);
+    else {
         form = code_ends_op(c, right, O_I_LD_V, 1 + VCELL) ? 1
                : code_ends_op(c, right, O_I_LD_U8, 2)      ? 2
                                                            : 0;
@@ -119,8 +120,7 @@ void qcg_arith(Code *const c, uint8_t *const right, const QType w, const uint32_
     c->iload = c->iloadend = nullptr; /* no longer a load */
 }
 
-/* Integer type t as QX.INT and QX.CONV take it; a float's. */
-static QrtNum qcg_num(const QType t)
+QrtNum qcg_num(const QType t)
 {
     switch (t) {
     case QY_BYTE:

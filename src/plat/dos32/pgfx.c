@@ -66,6 +66,7 @@ static struct {
     float hz;
     bool coloured; /* the DAC holds dac */
     uint32_t dac[COLOURS];
+    bool hidden; /* the text screen shown in its place: none kept */
 
     /* the text screen kept: its memory, then its DAC */
     uint8_t *kept;
@@ -290,6 +291,18 @@ static const PgfxPlayer played = {
     .read = accel_read,
 };
 
+/* The text screen kept, the screen shown in the mode chosen: false, it could not (none kept). */
+static bool shown(void)
+{
+    if (kept() && shown_in(gfx.chosen))
+        return true;
+
+    if (gfx.kept)
+        restored();
+
+    return false;
+}
+
 void pgfx_set_player(const PgfxPlayer *const p) { (void)p; }
 
 void pgfx_set_display(const PgfxDisplay *const d) { (void)d; }
@@ -337,11 +350,8 @@ bool pgfx_open(const uint16_t w, const uint16_t h, const uint8_t depth, const bo
     gfx.vsync = vsync;
     gfx.chosen = (uint32_t)i;
 
-    if (kept() && shown_in(gfx.chosen))
+    if (shown())
         return true;
-
-    if (gfx.kept)
-        restored();
 
     pmem_free(gfx.page);
     pmem_free(gfx.row);
@@ -360,11 +370,36 @@ void pgfx_close(void)
     if (!gfx.page)
         return;
 
-    restored();
+    if (!gfx.hidden)
+        restored();
+
     pmem_free(gfx.page);
     pmem_free(gfx.row);
     gfx.page = gfx.row = nullptr;
     gfx.mode = nullptr;
+    gfx.hidden = false;
+}
+
+bool pgfx_hide(void)
+{
+    if (!gfx.page || gfx.hidden)
+        return false;
+
+    restored();
+    gfx.hidden = true;
+    return true;
+}
+
+bool pgfx_unhide(void)
+{
+    if (!gfx.hidden || !shown()) /* no memory to keep the text screen: hidden still */
+        return gfx.hidden;
+
+    uint32_t palette[COLOURS];
+    memcpy(palette, gfx.dac, sizeof palette);
+    gfx.hidden = false;
+    pgfx_show(palette);
+    return true;
 }
 
 uint8_t *pgfx_page(uint32_t *const pitch)
@@ -375,7 +410,7 @@ uint8_t *pgfx_page(uint32_t *const pitch)
 
 void pgfx_show(const uint32_t *const palette)
 {
-    if (!gfx.page)
+    if (!gfx.page || gfx.hidden)
         return;
 
     const uint8_t p = gfx.drawn;

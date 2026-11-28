@@ -20,13 +20,14 @@ static inline Called gfx_call(
 {
     const QxModule *const m = qx_init_gfx(host);
     const QxEntry *const e = natv_entry(m, "", name, (uint32_t)strlen(name));
-    QxCall c = {.host = host, .arg = args};
+    char why[FAULT_WHY];
+    NatvCall c = {.c = {.host = host, .arg = args}, .why = why}; /* as vm/ncall.c makes it */
 
     if (!e)
         return (Called){.error = 255};
 
-    e->fn(&c);
-    return (Called){c.error, c.result};
+    e->fn(&c.c);
+    return (Called){c.c.error, c.c.result};
 }
 
 /* A LONG or BYTE array of n elements over data. */

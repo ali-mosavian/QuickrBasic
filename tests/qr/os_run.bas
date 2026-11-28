@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' os.run: the command's output between the program's
 import os
 print "before"

@@ -74,8 +74,11 @@
 #include "vm/flow.h"
 #include "vm/stmts.h"
 
-void repl_error(Session *const S, uint8_t code)
+/* repl_error's code, why its reason (nullptr none): it outlives the raise. */
+[[noreturn]]
+static void raise_why(Session *const S, const uint8_t code, const char *const why)
 {
+    S->repl.why = why;
     S->lexr.source = nullptr; /* a streamed line's lexing ended */
     fmth_clear();
 
@@ -92,6 +95,8 @@ void repl_error(Session *const S, uint8_t code)
     S->repl.err = code;
     longjmp(*S->repl.top, REPL_ERROR);
 }
+
+void repl_error(Session *const S, const uint8_t code) { raise_why(S, code, nullptr); }
 
 /* An error found off the code (the block pass, a declaration) set as if an ERR op at body offset
    at of line (a program store offset; FAULT_KEEP the current one) raised it. vm.opip is set to an
@@ -121,7 +126,7 @@ static void place(Session *const S, const Failure *const e)
 static void repl_raise_at(Session *const S, const Failure *const e)
 {
     place(S, e);
-    repl_error(S, e->code);
+    raise_why(S, e->code, e->why);
 }
 
 void repl_fault(Fault *const f, const Failure *const e)
@@ -135,7 +140,7 @@ void repl_fault(Fault *const f, const Failure *const e)
     if (e->line != FAULT_KEEP)
         S->vm.line = e->line;
 
-    repl_error(S, e->code);
+    raise_why(S, e->code, e->why);
 }
 
 void repl_ready(Session *const S) { longjmp(*S->repl.top, REPL_READY); }
@@ -364,9 +369,16 @@ static void report(Session *const S, const uint8_t code)
         return;
     }
 
-    flow_drop_calls(S);
-    S->vm.cont.line = 0;
+    session_drop_stop(S);
     (line != DLINE ? dial_line(&S->prog, line) : &dialect_qbasic)->report(S, code);
+
+    if (!S->repl.why)
+        return;
+
+    if (S->cons.col)
+        cons_nl(&S->cons);
+
+    cons_puts(&S->cons, S->repl.why);
 }
 
 /* The input's end in a file run, or at READY: files closed, exit. */
@@ -403,12 +415,16 @@ void repl_cont(Session *const S)
     exec_run(S);
 }
 
-/* An error's end: the stacks reset, the console's channels again. */
+/* An error's end: the stacks reset, the console's channels again. A stop (E_BRK) can continue: its
+   extensions run on till the stop is dropped (session_drop_stop). */
 static void reset(Session *const S)
 {
     S->vm.err.active = false;
     S->vm.running = false; /* its loop's frame is gone */
-    natv_stop(&S->natv);
+
+    if (S->repl.err != E_BRK)
+        natv_stop(&S->natv);
+
     chnl_clear(&S->chnl);
     cons_fresh(&S->cons);
     S->vm.sp = flow_stack_base(&S->vm); /* below a stop's frames, which CONT and probes keep */
@@ -599,6 +615,7 @@ static void run_qbasic(Session *const S)
 
     link_start(&S->comp);
     link_empties(&S->comp, warn_empty, S);
+    link_final(&S->comp);
     stmt_runfirst(S);
     exec_run(S);
 }
@@ -964,23 +981,29 @@ static uint32_t module_at(Session *const S, const char *const path, const Dialec
     return m;
 }
 
+/* Module m's dialect when another than the main's: a guest's (Dialect.guest_read); else null. */
+static const Dialect *guest_of(Session *const S, const uint32_t m)
+{
+    const Dialect *const d = modu_mod(&S->modu, m)->dialect;
+    return d != modu_mod(&S->modu, 0)->dialect ? d : nullptr;
+}
+
 /* The module at path imported by the one being read: loaded once, declared before it. */
 static void import(Session *const S, const char *const path)
 {
-    const Dialect *const d = dial_of_file(path);
+    modu_import(&S->modu, S->repl.module, repl_module(S, path));
+}
 
-    if (S->repl.guests && d->text)
-        fault_raise(
-            &S->fault,
-            (Failure){
-                .code = E_SN,
-                .dg = DG_SYNTAX_ERROR_GUEST,
-                .line = FAULT_KEEP,
-            }
+uint32_t repl_module(Session *const S, const char *const path)
+{
+    return module_at(S, path, dial_of_file(path));
+}
 
-        );
-
-    modu_import(&S->modu, S->repl.module, module_at(S, path, d));
+uint32_t repl_import(Session *const S, const uint32_t from, const char *const path)
+{
+    const uint32_t m = repl_module(S, path);
+    modu_import(&S->modu, from, m);
+    return m;
 }
 
 /* FROM's module n to path: a package's folder, or a .qbx of parts alone, sets in_package. false:
@@ -1234,6 +1257,22 @@ static void read_module(Session *const S, const uint32_t m, const char *const pa
     S->prog.add_flags = flags;
 }
 
+/* The first stored line of another dialect's module, its LF_TOP; 0 none. The QBasic modules' lines
+   are before it, so their procedures are in the order of their lines (comp/blocks.c). */
+static uint32_t guests_top(Session *const S)
+{
+    const Prog *const pg = &S->prog;
+
+    for (uint32_t line = PROGBASE; prog_line(pg, line)->len; line += prog_line(pg, line)->len) {
+        const Line *const l = prog_line(pg, line);
+
+        if (l->flags & LF_TOP && guest_of(S, modu_of(&S->modu, l->file)))
+            return line;
+    }
+
+    return 0;
+}
+
 /* The modules the program imports from module from on, after the store's lines, each once and in
    the order first named, a module's own imports after it; another dialect's last, so a top's place
    is no module's number. An END ends each module's lines, the main's too, its LF_TOP the next
@@ -1246,29 +1285,37 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
     if (last)
         prog_cut(&S->prog, last);
 
-    for (uint32_t m = from; m < modu_count(&S->modu); m++) {
-        if (modu_mod(&S->modu, m)->dialect) /* after the QBasic ones: their procedures first */
-            continue;
+    /* by rounds: another dialect's module's imports, QBasic ones and natives too, the next's */
+    for (uint32_t lo = from, hi; lo < modu_count(&S->modu); lo = hi) {
+        hi = modu_count(&S->modu);
 
-        char path[PFIL_PATH]; /* the table may move as it grows */
-        strcpy(path, modu_module_path(&S->modu, m));
-        modu_top(&S->modu, m, prog_at(&S->prog));
-        module_end(S, S->repl.nfile);
-        S->repl.module = m;
-        memset(S->lexr.off, 0, sizeof S->lexr.off);
-        read_module(S, m, path);
-    }
+        for (uint32_t m = lo; m < hi; m++) {
+            if (modu_mod(&S->modu, m)->dialect) /* after the QBasic ones: their procedures first */
+                continue;
 
-    for (uint32_t m = from; m < modu_count(&S->modu); m++) { /* its imports its dialect's alone */
-        const Dialect *const d = modu_mod(&S->modu, m)->dialect;
+            char path[PFIL_PATH]; /* the table may move as it grows */
+            strcpy(path, modu_module_path(&S->modu, m));
+            S->prog.add_at = guests_top(S); /* before them: the procedures' lines in order */
+            modu_top(&S->modu, m, prog_at(&S->prog));
+            module_end(S, S->repl.nfile);
+            S->repl.module = m;
+            memset(S->lexr.off, 0, sizeof S->lexr.off);
+            read_module(S, m, path);
+            S->prog.add_at = 0;
+            link_tops(&S->comp); /* those after moved */
+        }
 
-        if (!d)
-            continue;
+        for (uint32_t m = lo; m < hi; m++) {
+            const Dialect *const d = guest_of(S, m);
 
-        modu_top(&S->modu, m, prog_at(&S->prog));
-        module_end(S, S->repl.nfile);
-        S->repl.module = m;
-        d->guest_read(S, m);
+            if (!d)
+                continue;
+
+            modu_top(&S->modu, m, prog_at(&S->prog));
+            module_end(S, S->repl.nfile);
+            S->repl.module = m;
+            d->guest_read(S, m);
+        }
     }
 
     module_end(S, 0); /* the last module's */
@@ -1384,63 +1431,93 @@ static uint32_t next_line(const Prog *const pg, const uint32_t line)
     return line + prog_line(pg, line)->len;
 }
 
-/* The program's lines read, declared: each module's after those it imports, the main's last,
-   its file's DEFtypes and OPTIONs from its first line; when the main is another dialect's
-   (guests), its QBasic modules alone, each after its LF_TOP. Then the main's again, for lines
-   typed. */
-static void declare_program(Session *const S, const bool guests, const bool lenient)
+/* QBasic module m's lines declared, its file's DEFtypes and OPTIONs from its first line. */
+static void declare_module(Session *const S, const uint32_t m)
 {
-    const uint32_t n = modu_count(&S->modu), *const order = modu_order(&S->modu);
+    const uint32_t top = modu_top_of(&S->modu, m);
+    const uint32_t from = m ? top + prog_line(&S->prog, top)->len : PROGBASE;
+    decl_module(&S->decl, &S->scop, &S->symb, sc_module(m), top);
+    S->decl.native = modu_mod(&S->modu, m)->native;
 
-    uint32_t declared = 0; /* by dial_index */
+    for (uint32_t line = from; !past_module(&S->prog, line); line = next_line(&S->prog, line))
+        redeclare(S, line);
+
+    S->decl.native = false;
+}
+
+/* The modules ordered, each's stage numbered (mem/module.h): the highest. */
+static uint32_t stages(Session *const S)
+{
+    modu_order(&S->modu);
     S->comp.guest = nullptr;
+    return modu_stages(&S->modu);
+}
+
+void repl_declare_stage(Session *const S, const uint32_t stage)
+{
+    const uint32_t n = modu_count(&S->modu), *const order = modu_ordered(&S->modu);
 
     for (uint32_t i = 0; i < n; i++) {
-        if (guests && (!order[i] || !modu_top_of(&S->modu, order[i])))
-            continue;
+        const uint32_t m = order[i];
+        const ModuMod *const mod = modu_mod(&S->modu, m);
 
-        const Dialect *const d = modu_mod(&S->modu, order[i])->dialect;
-
-        if (d) { /* another dialect's: each checked, all at once */
-            const uint32_t bit = 1u << dial_index(d);
-
-            if (!(declared & bit))
-                d->guest_declare(S, lenient);
-
-            declared |= bit;
-            continue;
-        }
-
-        const uint32_t m = order[i], top = modu_top_of(&S->modu, m);
-        const uint32_t from = m ? top + prog_line(&S->prog, top)->len : PROGBASE;
-        decl_module(&S->decl, &S->scop, &S->symb, sc_module(m), top);
-        S->decl.native = modu_mod(&S->modu, m)->native;
-
-        for (uint32_t line = from; !past_module(&S->prog, line); line = next_line(&S->prog, line))
-            redeclare(S, line);
-
-        S->decl.native = false;
+        if (!mod->dialect && mod->stage == stage && (!m || modu_top_of(&S->modu, m)))
+            declare_module(S, m);
     }
+}
 
+void repl_declared(Session *const S)
+{
     S->vm.line = DLINE;
     decl_defevents(&S->decl, &S->scop, &S->symb, &S->prog);
     decl_main(&S->decl, &S->symb);
 }
 
-/* The declarations made again from none: declare_program's. */
-static void declare_again(Session *const S, const bool guests, const bool lenient)
+/* The program's lines read, declared by stages: a stage's QBasic modules, each after those it
+   imports, then each other dialect's (its Dialect.guest_declare), before the next stage's. */
+static void declare_program(Session *const S, const bool lenient)
+{
+    const uint32_t top = stages(S);
+    const uint32_t n = modu_count(&S->modu), *const order = modu_ordered(&S->modu);
+
+    for (uint32_t stage = 0; stage <= top; stage++) {
+        uint32_t declared = 0; /* by dial_index */
+        repl_declare_stage(S, stage);
+
+        for (uint32_t i = 0; i < n; i++) { /* each dialect's once a stage */
+            const Dialect *const d = guest_of(S, order[i]);
+
+            if (d && !(declared & 1u << dial_index(d))) {
+                declared |= 1u << dial_index(d);
+                d->guest_declare(S, stage, top, lenient);
+            }
+        }
+    }
+
+    repl_declared(S);
+}
+
+/* No declarations: those of the lines entered before gone. */
+static void undeclare(Session *const S)
 {
     symb_vars_init(&S->symb);
     decl_reset(&S->decl, &S->scop, &S->symb);
     session_drop(S);
     link_tops(&S->comp);
-    declare_program(S, guests, lenient);
+}
+
+uint32_t repl_stages(Session *const S)
+{
+    undeclare(S);
+    return stages(S);
 }
 
 /* Dialect.redeclare's: the program's own and its other dialects' modules', those lenient. */
-static void redeclare_qbasic(Session *const S) { declare_again(S, false, true); }
-
-void repl_redeclare_guests(Session *const S) { declare_again(S, true, false); }
+static void redeclare_qbasic(Session *const S)
+{
+    undeclare(S);
+    declare_program(S, true);
+}
 
 void repl_load(Session *const S)
 {
@@ -1453,32 +1530,36 @@ void repl_load(Session *const S)
     memset(S->lexr.off, 0, sizeof S->lexr.off);
     read_file(S, S->repl.file, S->repl.file, SOURCE_FILENO, 0);
     read_modules(S, 1, 0);
-    declare_program(S, false, false);
+    declare_program(S, false);
     S->repl.loading = false;
 }
 
-void repl_guests(
-    Session *const S,
-    const char *const *const paths,
-    const uint32_t n,
-    const uint16_t file,
-    uint32_t *const mods
-)
+/* The store's last line when an LF_TOP past the modules' lines; else 0. */
+static uint32_t end_top(const Prog *const pg)
 {
+    uint32_t last = 0;
+
+    for (uint32_t line = PROGBASE; prog_line(pg, line)->len; line = next_line(pg, line))
+        last = line;
+
+    return last && prog_line(pg, last)->flags & LF_TOP && !prog_line(pg, last)->file ? last : 0;
+}
+
+void repl_guests(Session *const S, const uint32_t from)
+{
+    bool any = false;
+
+    for (uint32_t m = from; m < modu_count(&S->modu); m++)
+        any |= !modu_mod(&S->modu, m)->dialect;
+
+    if (!any)
+        return;
+
     S->repl.loading = true;
-    S->repl.guests = true;
     S->repl.fline = 0;
-    S->repl.nfile = file;
+    S->repl.nfile = (uint16_t)modu_files(&S->modu);
     S->repl.module = 0;
-
-    for (uint32_t i = 0; i < n; i++) {
-        mods[i] = module_at(S, paths[i], dial_of_file(paths[i]));
-        modu_import(&S->modu, 0, mods[i]);
-    }
-
-    read_modules(S, 1, 0);
-    declare_program(S, true, false);
-    S->repl.guests = false;
+    read_modules(S, from, end_top(&S->prog));
     S->repl.loading = false;
 }
 
@@ -1506,7 +1587,6 @@ static uint32_t guests_walk(Session *const S)
     Prog *const pg = &S->prog;
     uint32_t last = 0;
     S->repl.loading = true;
-    S->repl.guests = true;
     S->repl.fline = 0;
     S->repl.module = 0;
 
@@ -1531,7 +1611,6 @@ static uint32_t guests_walk(Session *const S)
     }
 
     S->repl.module = 0;
-    S->repl.guests = false;
     S->repl.loading = false;
     return last;
 }
@@ -1542,8 +1621,7 @@ void repl_guests_stored(
     Session *const S,
     const uint32_t *const mods,
     const uint32_t n,
-    const uint32_t from,
-    const bool declare
+    const uint32_t from
 )
 {
     for (uint32_t i = 0; i < n; i++)
@@ -1551,24 +1629,19 @@ void repl_guests_stored(
 
     uint32_t last = guests_walk(S);
     S->repl.loading = true;
-    S->repl.guests = true;
 
     for (uint32_t i = 0; i < n; i++)
         if (!modu_top_of(&S->modu, mods[i]))
             read_guest(S, mods[i], &last);
 
     for (uint32_t m = from; m < modu_count(&S->modu); m++)
-        read_guest(S, m, &last);
+        if (!modu_mod(&S->modu, m)->dialect) /* a Quickr one: the program's to read */
+            read_guest(S, m, &last);
 
     if (!last)
         module_end(S, 0); /* the last module's */
 
     S->repl.module = 0;
-
-    if (declare)
-        declare_again(S, true, false);
-
-    S->repl.guests = false;
     S->repl.loading = false;
 }
 
@@ -1650,7 +1723,7 @@ static void walk(Session *const S, const bool lenient)
             if (S->repl.module)
                 modu_top(&S->modu, S->repl.module, last);
 
-            const Dialect *const d = modu_mod(&S->modu, S->repl.module)->dialect;
+            const Dialect *const d = guest_of(S, S->repl.module);
 
             if (S->repl.module && d) /* another dialect's: its imports as it finds them */
                 d->guest_find(S, S->repl.module);
@@ -1718,7 +1791,7 @@ static void reread(Session *const S, const bool lenient)
 static void relink(Session *const S, const bool lenient)
 {
     reread(S, lenient);
-    declare_program(S, false, false);
+    declare_program(S, false);
     S->repl.loading = false;
 }
 

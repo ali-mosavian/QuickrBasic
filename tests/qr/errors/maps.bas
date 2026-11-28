@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' maps: their errors
 var a as dict[double, int]
 var m as dict[string, int]
@@ -14,7 +14,7 @@ m.push(1)
 print m.keys(1)
 let o as dict[string, int]
 o["a"] = 1
-var l as int[]
+var l as list[int]
 print l.keys()
 print m
 var r as dict[string, int or Error]

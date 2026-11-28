@@ -24,7 +24,6 @@ Blocks crossed|this line ends a block while the {other} block started inside it 
 Duplicate definition /function|`{name}` is also the name of a FUNCTION that takes arguments, so here it calls that FUNCTION instead of reading the variable|rename the variable: a variable can't share a FUNCTION's name
 Duplicate definition /fixed|`{name}` is a fixed array field: its TYPE sets its size|to REDIM it, declare the field in the TYPE with empty parentheses, as `g() AS LONG`
 Syntax error /import|{statement} must be the first statement on its line|put it on a line of its own
-Syntax error /guest|a Quickr program imports this module, so it imports only QBasic modules, not this Quickr one|import the Quickr module from a Quickr file
 Name of subprogram illegal /reserved|`{text}` is a reserved word, so it cannot name a SUB or FUNCTION|rename it
 Subprogram not defined|`{name}` is DECLAREd, but no SUB of that name is defined|write `SUB {name} ... END SUB`, or remove the DECLARE and its calls
 Subprogram not defined /native|the native module's code has no entry for `{name}`|name its C function with ALIAS, or rebuild the module with it
@@ -32,7 +31,7 @@ Parameter type mismatch /native|`{name}`'s code takes other arguments than this 
 Function not defined /declared|`{name}` is DECLAREd, but no FUNCTION of that name is defined|write `FUNCTION {name} ... END FUNCTION`, or remove the DECLARE and its calls
 Type mismatch /record|`{name}` holds a variable-length STRING or a dynamic array, so its bytes are not all its data|read and write its fields one by one, or keep its TYPE to numbers and STRING * n
 Type mismatch /sadd|`{name}` is not a variable-length STRING, the one kind of variable SADD and SSEG take|use VARPTR for any other variable
-Parameter type mismatch /quickr|`{name}` is a Quickr function whose parameters or result QBasic has no equal for: a byte, an unsigned or long integer, an optional, an Error, a list, a dict, an enum, a function value; or it is generic, a generator, a native|keep the function's parameters and result to int, short, single, double, string, bool and records of them
-Type mismatch /quickr|`{name}` is a Quickr record with a field QBasic has no equal for, or a private one|keep the record's fields public, and to int, short, single, double, string, bool and records of them
+Parameter type mismatch /quickr|`{name}` is a Quickr function whose parameters or result QBasic has no equal for: a byte, a ubyte outside a list, an unsigned or long integer, an optional, an Error, a list result, a list of lists, a fixed array, a dict, an enum, a function value; or it is generic, a generator, a native|keep the function's parameters and result to int, short, single, double, string, bool and records of them, its parameters to lists of those and of ubyte too
+Type mismatch /quickr|`{name}` is a Quickr record with a field QBasic has no equal for, or a private one|keep the record's fields public, and to int, short, ubyte, single, double, string, bool, records of them and fixed arrays and lists of those
 Duplicate definition /quickr|this Quickr module has two public names spelled `{other}` but for case, and QBasic matches names case aside|rename one of them
 Syntax error /disable|OPTION DISABLE takes QB's words for devices, a comma between each, and this is not one|list words such as LINE, CIRCLE, OPEN, PRINT; the language's own (IF, FOR, SIN...) stay keywords

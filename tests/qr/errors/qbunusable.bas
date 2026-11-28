@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' what Quickr has no equal for is an error where it is used, never at the import
 import odd
 from odd import fill, Fixed

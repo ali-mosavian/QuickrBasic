@@ -1,9 +1,9 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' generics: their errors, an instance's named
 type Vec
     x as int
 end type
-function largest[T](a as T[]) as T
+function largest[T](a as list[T]) as T
     var best = a[0]
     for x in a
         if x > best then
@@ -18,7 +18,7 @@ end function
 function none_of[T]() as int
     return 0
 end function
-var vs as Vec[]
+var vs as list[Vec]
 print largest(vs).x
 print pair(1, "a")
 print none_of()

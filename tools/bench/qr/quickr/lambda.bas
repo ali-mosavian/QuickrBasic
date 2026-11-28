@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 function sum_where(a as int[1000], keep as function(int) as bool) as int
     var t = 0
     for x in a

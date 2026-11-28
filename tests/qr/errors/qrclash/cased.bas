@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 function twice(x as int) as int
     return 2 * x
 end function

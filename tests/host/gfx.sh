@@ -50,13 +50,57 @@ check 'interface words its own' ' 3 ' \
     'print x'
 
 check 'quickr' "$(printf '5 1\n5')" \
-    "' OPTION DIALECT QUICKR" \
+    "option dialect quickr" \
     'from gfx import display, draw' \
     'import gfx.surface' \
     'let canvas = display.open(8, 4, 8, 0)' \
     'draw.rect(canvas, 1, 1, 3, 2, 5, 4)' \
     'print gfx.surface.point(canvas, 2, 2); " "; display.draws()' \
     'print gfx.surface.point(canvas, 3, 2)'
+
+# a record array to a native: corners() AS Vec2 takes a Quickr Vec2[4]; its elements were singles
+check 'quickr quad of Vec2' '5 0 2' \
+    "option dialect quickr" \
+    'from gfx import display, surface, draw' \
+    'from gfx.draw import Vec2' \
+    'let c = display.open(8, 8, 8, 0)' \
+    'let s = surface.new(4, 4)' \
+    'draw.rect(s, 0, 0, 3, 3, 5, 4)' \
+    'var p as Vec2[4]' \
+    'p[1].x = 6' \
+    'p[2].x = 6' \
+    'p[2].y = 6' \
+    'p[3].y = 6' \
+    'draw.quad(c, p, 0, s, 0)' \
+    'print surface.point(c, 3, 3); " "; surface.point(c, 7, 7); " "; display.draws()'
+
+# pixels() AS BYTE: a ubyte[], and to a native a fixed ubyte array, a record's too
+check 'quickr pixels' "$(printf '7 7 9 200')" \
+    "option dialect quickr" \
+    'from gfx import surface' \
+    'type Tile' \
+    '    px as ubyte[4]' \
+    'end type' \
+    'let s = surface.new(2, 2)' \
+    'var px as ubyte[4]' \
+    'px[3] = 7' \
+    'surface.write(s, 0, 0, 2, 2, px)' \
+    'var back = ubyte[4]' \
+    'surface.read(s, 0, 0, 2, 2, back)' \
+    'back[0] = 9' \
+    'back[1] = 200' \
+    'surface.write(s, 0, 0, 2, 2, back)' \
+    'var t as Tile' \
+    'surface.read(s, 0, 0, 2, 2, t.px)' \
+    'print back[3]; " "; surface.point(s, 1, 1); " "; t.px[0]; " "; t.px[1]'
+
+# a Quickr module QBasic imports imports gfx
+printf '%s\n' "option dialect quickr" 'import gfx.display' 'from gfx import surface, draw' \
+    'function paint() as int' '    let c = gfx.display.open(8, 4, 8, 0)' \
+    '    draw.rect(c, 1, 1, 3, 2, 5, 4)' '    return surface.point(c, 2, 2)' 'end function' > "$D/qg.bas"
+check 'quickr module of qbasic' ' 5 ' \
+    'import qg' \
+    'print qg.paint()'
 
 check 'no such part' "$(printf 't.bas:1: File not found\n  import gfx.nosuch\n  ^')" \
     'import gfx.nosuch'
