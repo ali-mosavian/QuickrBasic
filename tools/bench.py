@@ -1394,6 +1394,9 @@ DEMO_EDITS = {
     ),
 }
 # demos --profile: each run's seconds; the longer one's counts less the shorter's are frames alone
+# the demos drawn in colours, not at 8 bits; the 8-bit tables take the rest
+DEMOS_IN_COLOUR = frozenset({"TEMPLE"})
+DEMOS_8 = tuple(n for n in DEMO_EDITS if n not in DEMOS_IN_COLOUR)
 DEMO_PROFILE_SECONDS = (2.0, 4.0)
 # a frame counted, and the rate since the first and the frames printed once seconds have passed
 DEMO_FLIP = """{i}gfx.display.flip
@@ -1428,6 +1431,8 @@ def demo_program(name: str, seconds: float, vsync: bool, edits: int, *, frames: 
     """Demo name at 320x200 and depth bits (its DEPTH too, if it has one), timed for seconds, its seed fixed so each
     run draws one world. frames: that many drawn, the demo's clock the frames at 30 a second, so frame n is the same
     whatever the build's speed. sized: at its own size; size: at this one."""
+    if depth == 8 and name in DEMOS_IN_COLOUR:
+        sys.exit(f"{name} draws in colours, not at 8 bits")
     src = (DEMOS / f"{name}.BAS").read_text().replace("randomize timer\n", "randomize 1\n")
     if frames:
         src = src.replace("gfx.display.clock", "(frames& / 30#)")
@@ -1633,7 +1638,7 @@ def cmd_demos(a: argparse.Namespace) -> int:
     if a.profile:
         with tempfile.TemporaryDirectory() as d:
             com = profiled(b, Path(d))
-            for name in a.demo or DEMO_EDITS:
+            for name in a.demo or DEMOS_8:
                 edits = len(DEMO_EDITS[name]) if a.edits is None else a.edits
                 jobs = [(demo_program(name, s, False, edits), "", "", own) for s in DEMO_PROFILE_SECONDS]
                 print_frame_profile(name, com, jobs, a.cycles, {"lib/gfx.qbx": qbx}, a.n)
@@ -1642,7 +1647,7 @@ def cmd_demos(a: argparse.Namespace) -> int:
             print_frame_profile(exe.name, exe, jobs, a.cycles, {}, a.n)
         return 0
     print(f"320x200 at 8 bits on DOS (pentium), {a.cycles} cycles a ms, frames a second over {a.seconds:g} s")
-    for name in a.demo or DEMO_EDITS:
+    for name in a.demo or DEMOS_8:
         edits = DEMO_EDITS[name]
         runs = [(True, 0)] + [(False, n) for n in range(len(edits) + 1)]
         print(f"{name:12}" + "".join(f"{t:>11}" for t in ("shipped", "no vsync", *(e[0] for e in edits))))
@@ -1983,7 +1988,7 @@ def demos_on(a: argparse.Namespace, own: dict[str, bytes]) -> int:
         for (rev, b), lib in zip(builds, libs, strict=True):
             with tempfile.TemporaryDirectory() as d:
                 exe = profiled(b, Path(d))
-                for name in a.demo or DEMO_EDITS:
+                for name in a.demo or DEMOS_8:
                     f = a.frames or MACHINE_FRAMES[a.machine]
                     jobs = [(demo_program(name, 0, False, a.edits or 0, frames=n), "", "", own) for n in (f, 2 * f)]
                     print(f"== {rev}")
@@ -1992,7 +1997,7 @@ def demos_on(a: argparse.Namespace, own: dict[str, bytes]) -> int:
         return 0
     print(f"320x200 at 8 bits on 86Box ({a.machine}), frames a second over {a.seconds:g} s")
     print(f"{'':12}" + "".join(f"{rev:>10}" for rev, _ in builds))
-    for name in a.demo or DEMO_EDITS:
+    for name in a.demo or DEMOS_8:
         job = (demo_program(name, a.seconds, False, 0), "", "", own)
         cells = [vm_rate(MACHINES[a.machine], b.dos, job, lib) for (_, b), lib in zip(builds, libs, strict=True)]
         print(f"{name:12}" + "".join(f"{c:>10}" for c in cells), flush=True)

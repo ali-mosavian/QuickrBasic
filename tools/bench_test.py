@@ -125,12 +125,17 @@ def broken_counter() -> None:
 
 
 def demo_colours(b: bench.Build) -> None:
-    """Each demo runs at 8 bits: ISLES' &H1E4E8C on an 8-bit surface raised Illegal function call, and every column of
-    its table read exit."""
+    """Each demo of the 8-bit tables runs at 8 bits: ISLES' &H1E4E8C on an 8-bit surface raised Illegal function call,
+    and every column of its table read exit. TEMPLE, drawn in colours, read exit 0 there; at 8 bits it is refused."""
+    try:
+        bench.demo_program("TEMPLE", 1, False, 0)
+        raise AssertionError("TEMPLE made at 8 bits")
+    except SystemExit:
+        pass
     with tempfile.TemporaryDirectory() as d:
         for n in ("stage.bas", "meter.bas"):
             shutil.copy(bench.DEMOS / n, d)
-        for name in bench.DEMO_EDITS:
+        for name in bench.DEMOS_8:
             (Path(d) / "DEMO.BAS").write_text(bench.demo_program(name, 0.5, False, 0))
             r = subprocess.run([str(b.counted), "DEMO.BAS"], cwd=d, capture_output=True, text=True, timeout=60)
             assert re.fullmatch(r"\s*[\d.]+\s+\d+\s*", r.stdout), f"{name}: {r.stdout}{r.stderr}"
@@ -171,8 +176,8 @@ def demo_one_world() -> None:
     """demos' runs draw one world and, by frames, one frame n. ISLES seeded its islands and boats from the timer, so
     two builds profiled drew two worlds: a third of one's frame was circles the other never drew."""
     for name in bench.DEMO_EDITS:
-        assert "randomize timer" not in bench.demo_program(name, 1, False, 0), name
-        framed = bench.demo_program(name, 0, False, 0, frames=5)
+        assert "randomize timer" not in bench.demo_program(name, 1, False, 0, depth=16), name
+        framed = bench.demo_program(name, 0, False, 0, frames=5, depth=16)
         assert "gfx.display.clock" not in framed and "frames& >= 5" in framed, name
 
 
@@ -554,7 +559,7 @@ def driver_functions_by_module() -> None:
 def demo_edits_apply() -> None:
     """TEMPLE's "no fires" edit outlived draw_fires's call on one line, so bench --edits stopped on it."""
     for name, edits in bench.DEMO_EDITS.items():
-        bench.demo_program(name, 1, False, len(edits), sized=True)
+        bench.demo_program(name, 1, False, len(edits), depth=16, sized=True)
 
 
 def shown_in_the_fork() -> None:
