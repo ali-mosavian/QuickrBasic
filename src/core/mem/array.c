@@ -426,8 +426,7 @@ uint32_t arry_size(const Arry *const ay, const Addr hdr)
 
 /* ---- freeing -------------------------------------------------------------------------------- */
 
-/* The arrays the n et elements at data hold dead, ours, a record's. */
-static void arry_kill_recs(Arry *const ay, const Addr data, const uint32_t n, const uint32_t et)
+void arry_kill_recs(Arry *const ay, const Addr data, const uint32_t n, const uint32_t et)
 {
     if (et < ET_REC)
         return;
