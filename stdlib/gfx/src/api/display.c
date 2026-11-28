@@ -106,7 +106,7 @@ void gfx_display_flip(void)
 
     const BackendCount n = g->backend->counted(g);
     g->cost = (gfx_display_framestats){
-        .draws = (int32_t)g->log.n,
+        .draws = (int32_t)g->log.calls,
         .batches = (int32_t)n.batches,
         .uploads = (int32_t)n.uploads,
         .waits = (int32_t)n.waits,

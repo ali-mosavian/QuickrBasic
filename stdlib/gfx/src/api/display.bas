@@ -388,10 +388,11 @@ declare function rgb cdecl ( _
 declare sub get_stats cdecl (s as FrameStats)
 
 ' :::::::::::
-' Counts the draw calls since the last flip.
+' Counts the draw calls since the last flip, kept
+' up to 32767.
 '
 '     Returns:
-'       The number of calls.
+'       The number of calls kept.
 ' :::::::::::
 declare function draws cdecl () as integer
 

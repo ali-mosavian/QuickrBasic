@@ -26,9 +26,12 @@ typedef struct {
     Rect clip;
 } Place;
 
+/* A frame's first CMD_KEPT calls, display.draws()'s most; calls counts them all. */
+enum { CMD_KEPT = 32767 };
+
 typedef struct {
     Command *items;
-    uint32_t n, cap;
+    uint32_t n, cap, calls;
 } CmdLog;
 
 /* The camera over a target w by h. */
