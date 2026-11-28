@@ -107,6 +107,25 @@ TEST(gfx_commands_drawn)
     CHECK(PX(0, 2) == 4); /* the canvas read after the flip is the frame shown */
 }
 
+/* Draws with no flip: the log kept every call, 72 bytes each, until Out of memory some 300k on. It
+   keeps the first 32767, draws()'s most; the flip's stats count them all. */
+TEST(gfx_draws_unflipped_in_bounded_memory)
+{
+    gfx_fresh(S);
+    CALL("display.open", I(16), I(16), I(8), I(0));
+    bool failed = false;
+
+    for (int32_t i = 0; i < 1000000 && !failed; i++)
+        failed = CALL("draw.pset", I(SURF_SCREEN), F(1), F(1), I(4)).error;
+
+    CHECK(!failed);
+    CHECK(CALL("display.draws").result.i == 32767);
+    CALL("display.flip");
+    gfx_display_framestats st;
+    CALL("display.get_stats", REF(&st));
+    CHECK(st.draws == 1000000);
+}
+
 TEST(gfx_closes_with_the_run)
 {
     const QxModule *const m = gfx_fresh(S);
