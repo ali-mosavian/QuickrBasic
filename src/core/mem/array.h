@@ -174,6 +174,8 @@ void arry_clear(Arry *ay, const ArrView *v);
 /* Header h's array dead, ours, and the arrays its records hold: arry_sweep frees them. A frame's
    or an arena's is not the heap's: it goes with the frame, its records' arrays here. */
 void arry_kill(Arry *ay, Addr h);
+/* The arrays the n et elements at data hold dead, ours, a record's. */
+void arry_kill_recs(Arry *ay, Addr data, uint32_t n, uint32_t et);
 /* The dead arrays' blocks given back, ours, their strings' blocks dead and collected first.
    Held (arry_hold): nothing freed, the dead left to a later sweep. */
 void arry_sweep(Arry *ay);
