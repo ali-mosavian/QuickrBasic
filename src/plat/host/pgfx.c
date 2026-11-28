@@ -65,14 +65,14 @@ const PgfxPlayer *pgfx_open_played(
     const uint16_t w,
     const uint16_t h,
     const uint8_t shaders,
-    const bool vsync
+    const uint8_t flags
 )
 {
     pgfx_close();
 
-    if (screen.player && screen.player->shaders & shaders && screen.player->open(w, h)) {
+    if (screen.player && screen.player->shaders & shaders && screen.player->open(w, h, flags)) {
         screen.playing = screen.player;
-        opened(vsync);
+        opened(flags & QX_SCREEN_VSYNC);
     }
 
     return screen.playing;

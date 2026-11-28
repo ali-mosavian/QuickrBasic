@@ -35,7 +35,7 @@ The interfaces are in [src/api](src/api). Every procedure there has a docstring.
 | [docs](docs) | [architecture](docs/architecture.md), [design rules](docs/design.md), [history](docs/history.md) |
 | [src](src) | the extension's C and its BASIC interfaces |
 | [tests](tests) | the unit tests |
-| [demos](demos) | `GFXDEMO.BAS`, `CUBE.BAS`, `ORBITS.BAS`, `PLASMA.BAS`, `TUNNEL.BAS`, `SPARKS.BAS`, `ISLES.BAS` |
+| [demos](demos) | `GFXDEMO.BAS`, `CUBE.BAS`, `ORBITS.BAS`, `PLASMA.BAS`, `TUNNEL.BAS`, `SPARKS.BAS`, `ISLES.BAS`, `MEADOW.BAS`, `TEMPLE.BAS` |
 
 ## Build and test
 

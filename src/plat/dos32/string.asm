@@ -1,51 +1,26 @@
 ; lib/string.c's block routines for the 386 (-mregparm=3: eax, edx, ecx), the CPU's string instructions where
-; they run forward. The direction flag stays clear: an interrupt may find it at any instruction.
+; they run forward; memcpy and memset are mem.asm's. The direction flag stays clear: an interrupt may find it
+; at any instruction.
         .386
         .model  flat
-        public  _memcpy, _memmove, _memset, _memcmp, _memchr, _strlen
+        public  _memmove, _memcmp, _memchr, _strlen
+        extern  _memcpy:near
 
-        .code
-; memcpy (dst eax, src edx, n ecx): dst. Under SMALL bytes a byte at a time; else bytes to dst's dword
-; boundary, its dwords, the last bytes.
 SMALL   equ     16
 
-_memcpy:
-        push    edi
-        push    esi
-        mov     edi, eax
-        mov     esi, edx
-forward:
-        cmp     ecx, SMALL
-        jb      fw_bytes
-        mov     edx, edi
-        neg     edx
-        and     edx, 3                  ; bytes to dst's boundary
-        sub     ecx, edx
-        xchg    ecx, edx
-        rep     movsb
-        mov     ecx, edx
-        shr     ecx, 2
-        rep     movsd
-        mov     ecx, edx
-        and     ecx, 3
-fw_bytes:
-        rep     movsb
-        pop     esi
-        pop     edi
-        ret
-
-; memmove (dst eax, src edx, n ecx): forward unless dst is inside src's n bytes; then from the end: under SMALL
+        .code
+; memmove (dst eax, src edx, n ecx): memcpy unless dst is inside src's n bytes; then from the end: under SMALL
 ; bytes a byte at a time; else bytes down to dst's end's dword boundary, the dwords four a turn, the first bytes.
 ; Each read is below every write before it.
 _memmove:
+        sub     eax, edx                ; dst - src
+        cmp     eax, ecx
+        lea     eax, [eax + edx]        ; dst; lea leaves the flags
+        jae     _memcpy                 ; dst below src (wrapped) or past its end
         push    edi
         push    esi
         mov     edi, eax
         mov     esi, edx
-        neg     edx
-        add     edx, eax                ; dst - src
-        cmp     edx, ecx
-        jae     forward                 ; dst below src (wrapped) or past its end
         push    eax
         add     esi, ecx
         add     edi, ecx
@@ -108,32 +83,6 @@ bk_byte:
 bk_done:
         pop     eax
         pop     esi
-        pop     edi
-        ret
-
-; memset (dst eax, c edx, n ecx): dst; aligned as memcpy
-_memset:
-        push    edi
-        push    eax
-        mov     edi, eax
-        movzx   eax, dl
-        imul    eax, 01010101h
-        cmp     ecx, SMALL
-        jb      st_bytes
-        mov     edx, edi
-        neg     edx
-        and     edx, 3
-        sub     ecx, edx
-        xchg    ecx, edx
-        rep     stosb
-        mov     ecx, edx
-        shr     ecx, 2
-        rep     stosd
-        mov     ecx, edx
-        and     ecx, 3
-st_bytes:
-        rep     stosb
-        pop     eax
         pop     edi
         ret
 

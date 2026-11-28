@@ -32,13 +32,14 @@ typedef struct {
 } PgfxFrame;
 
 /* A GPU's screen: the shading languages it takes (1 << QxShader each), and whether clip space's y
-   runs down a texture's rows; opened w by h, closed; a list played; w by h pixels at x, y of a
-   texture read, bytes R, G, B and A; play true when the list showed one. Called from the
-   interpreter's thread. */
+   runs down a texture's rows; opened w by h with QxScreen's flags (QX_SCREEN_VSYNC its own if it
+   shows at the retrace itself, the host waiting for the others), closed; a list played; w by h
+   pixels at x, y of a texture read, bytes R, G, B and A; play true when the list showed one.
+   Called from the interpreter's thread. */
 typedef struct {
     uint8_t shaders;
     bool y_down;
-    bool (*open)(uint16_t w, uint16_t h);
+    bool (*open)(uint16_t w, uint16_t h, uint8_t flags);
     void (*close)(void);
     bool (*play)(const uint32_t *list, uint32_t words);
     void (*read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
@@ -57,7 +58,7 @@ void pgfx_set_player(const PgfxPlayer *p);
 void pgfx_set_display(const PgfxDisplay *d);
 /* A screen w by h the player plays, in the runtime's place, when it takes one of shaders: the
    player; null, none, or it could not. Open, a screen is closed first. */
-const PgfxPlayer *pgfx_open_played(uint16_t w, uint16_t h, uint8_t shaders, bool vsync);
+const PgfxPlayer *pgfx_open_played(uint16_t w, uint16_t h, uint8_t shaders, uint8_t flags);
 /* The open screen's player: null, none or pages. */
 const PgfxPlayer *pgfx_playing(void);
 /* A screen w by h, depth bits a pixel, in the runtime's place: false, none of that depth, or no

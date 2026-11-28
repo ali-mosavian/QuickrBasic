@@ -84,20 +84,13 @@ named as a folder's: `gfx.draw` is the part `draw` of `gfx.qbx`, whose path `loc
 `gfx.qbx/draw`, as Python's zipimport names a module in a zip. Its DECLAREs bind to the entries
 named `draw.NAME`. A module's own `.qbx` has the part "" alone.
 
-The DOS slice is an image linked at 0 (`util/image.c`), made by `pack` from an `lld-link` DLL:
-
-| Offset | Bytes | Field |
-|---|---|---|
-| 0 | 4 | `QXI` and its version, 1 |
-| 4 | 4 | the bytes stored |
-| 8 | 4 | the image's size in memory, the bss past the bytes stored |
-| 12 | 4 | the entry's offset, `qx_init_<name>` |
-| 16 | 4 | the relocations' count |
-| 20 | | the bytes stored, padded to 4; then each relocation, the offset of a 32-bit word |
+The DOS slice is the `lld-link` DLL itself. Being a standard PE file, debuggers and profilers name
+its code from its link map. `pack` checks it as `util/image.c` loads it: an i386 DLL that imports
+nothing, exports `qx_init_<name>`, and relocates only 32-bit words.
 
 | Slice | Holds | Loaded by |
 |---|---|---|
-| `dos-i386` | a flat image, its relocations' offsets and its entry's offset, made from an `lld-link` DLL by `tools/qbx.py` | our loader: a heap block, the relocations added, the entry called |
+| `dos-i386` | an i386 DLL, as `lld-link` writes it | our loader: a heap block, the sections copied, the relocations added, the entry called |
 | `macos` | a universal dylib, arm64 and x86-64 | written once to `~/Library/Caches/QuickrBasic/<hash>.dylib`, then `dlopen` |
 | `linux-x86_64` | an ELF shared object | `memfd_create`, then `dlopen("/proc/self/fd/n")`: no file written |
 | `wasm32` | a side module (`wasm-ld -shared`) | the worker's JS: instantiated into the IDE's own memory and table |
@@ -184,7 +177,9 @@ const QxModule *QX_CALL qx_init_synth(const QxHost *host);
 - **The extension's memory is the host's** (`host->alloc`): the C heap (`pmem_resize`), on wasm
   in the shared memory.
 - **The host's services are generic**: audio, pages to draw in, a GPU that plays lists
-  (`qx/qxlist.h`). It knows no extension; one shipped with QuickrBasic lives in `stdlib/` and brings
+  (`qx/qxlist.h`), with shaders or, from minor 6, a fixed pipeline (from minor 7 at 8 bits too),
+  and from minor 8 a texture's levels.
+  It knows no extension; one shipped with QuickrBasic lives in `stdlib/` and brings
   the rest itself, gfx its shaders.
 
 ## Binding: QB 4.5's DECLARE
@@ -350,14 +345,14 @@ stops it, and the process's end closes them all.
 
 Each platform's `pext_load`:
 
-**DOS** (`plat/dos32/pext.c`, `util/image.c`). `tools/qbx.py pack` makes the DLL an image at 0:
-its sections where they lie, its relocations' offsets and its entry's offset. The loader:
+**DOS** (`plat/dos32/pext.c`, `util/image.c`). The slice is the DLL. The loader:
 
-1. takes a block from `pmem_resize`, aligned to 16;
-2. checks that CS's base is DS's and its limit past the block;
-3. copies the image in and zeroes the rest (the bss);
-4. adds the block's address to the 32-bit word at each relocation's offset, and calls the entry,
-   cdecl.
+1. reads its headers and finds the export `qx_init_<name>`;
+2. takes a block of its size in memory from `pmem_resize`, aligned to 16;
+3. checks that CS's base is DS's and its limit past the block;
+4. zeroes the block and copies each section's stored bytes to its offset;
+5. adds the block's address less the DLL's base to the 32-bit word at each HIGHLOW relocation, and
+   calls the entry, cdecl.
 
 **Mac** (`plat/host/pext.c`):
 
@@ -392,7 +387,7 @@ tests need no loader.
 ![Building a .qbx](img/qbx-build.svg)
 
 `tools/qbx.py glue` writes the glue, each slice is built with it, and `tools/qbx.py pack` puts the
-interfaces and the slices in a `.qbx`. `pack` makes a DOS DLL its image. The flags, as the
+interfaces and the slices in a `.qbx`. `pack` checks a DOS DLL. The flags, as the
 prototype used them:
 
 | Slice | Compile | Link |

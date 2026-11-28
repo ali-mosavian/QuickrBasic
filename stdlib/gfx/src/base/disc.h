@@ -5,12 +5,14 @@
  * A pixel is within r of c when its centre p is: |p - c|^2 < r^2, or equal with p left of c (a
  * pixel on a left edge is drawn). A filled circle covers those within r + 1/2; an outline those
  * within that and not within r - 1/2; an arc the outline's within its sweep. Each product and sum
- * is rounded once, never fused, as the shader's are: the two agree to the pixel.
+ * is rounded once, never fused, as the shader's are: the two agree to the pixel. disc_runs gives a
+ * disc's rows as runs, for whoever draws without the shader's test (disc.c).
  */
 #ifndef GFX_DISC_H
 #define GFX_DISC_H
 #include "base/gmath.h"
 #include "base/geom.h"
+#include <stdint.h>
 
 /* The pixels within outer and not within inner of c. */
 typedef struct {
@@ -65,4 +67,9 @@ static inline bool swept(const Sweep *const w, const float dx, const float dy)
     const float from = w->s.x * dy - w->s.y * dx, to = dx * w->f.y - dy * w->f.x;
     return w->whole || (w->wide ? !(from < 0 && to < 0) : from >= 0 && to >= 0);
 }
+/* A run of row y's pixels, x0 up to x1. */
+typedef void DiscRun(void *ctx, int32_t y, int32_t x0, int32_t x1);
+
+/* The runs of the pixels k covers in rows top up to bottom, in sweep w unless null, to run. */
+void disc_runs(const Disc *k, const Sweep *w, int32_t top, int32_t bottom, DiscRun *run, void *ctx);
 #endif

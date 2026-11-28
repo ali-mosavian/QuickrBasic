@@ -109,78 +109,16 @@ void soft_outline(
         walk(t, &f, p[i], p[(i + 1) % n], false);
 }
 
-/* Row y's pixels within r of c (disc.h), [*x0, *x1): false, none. The square root's ends are the
-   rule's unless one rounds near a pixel's centre: near bounds its rounding sixteen times over
-   where the row reaches r / 8 each side of c; there, and on narrower rows, disc_within settles
-   them. */
-static bool chord(const Vec c, const float r, const int32_t y, int32_t *const x0, int32_t *const x1)
+/* A circle's or an arc's: its target and filler. */
+typedef struct {
+    const SoftTarget *t;
+    Flat f;
+} Ring;
+
+static void ring_span(void *const ctx, const int32_t y, const int32_t x0, const int32_t x1)
 {
-    if (!(r > 0))
-        return false;
-
-    const float dy = (float)y - c.y, h2 = r * r - dy * dy, h = h2 > 0 ? gm_sqrt(h2) : 0;
-    const float near = 0x1p-18f * (9 * r + (c.x < 0 ? -c.x : c.x) + 1);
-    int32_t a = cover_first(c.x - h), b = cover_first(c.x + h);
-    const float left = (float)a - (c.x - h), right = (float)b - (c.x + h);
-
-    if (!(h >= r / 8 && left > near && left < 1 - near && right > near && right < 1 - near)) {
-        while (disc_within((float)(a - 1) - c.x, dy, r))
-            a--;
-
-        while (a < b && !disc_within((float)a - c.x, dy, r))
-            a++;
-
-        while (disc_within((float)b - c.x, dy, r))
-            b++;
-
-        while (b > a && !disc_within((float)(b - 1) - c.x, dy, r))
-            b--;
-    }
-
-    *x0 = a;
-    *x1 = b;
-    return a < b;
-}
-
-/* A part of a circle's row, x0 up to x1. */
-typedef void Piece(const SoftTarget *t, int32_t y, int32_t x0, int32_t x1, const void *ctx);
-
-/* The pixels k covers, its rows' parts to piece. */
-static void ring(
-    const SoftTarget *const t,
-    const Disc *const k,
-    Piece *const piece,
-    const void *const ctx
-)
-{
-    const int32_t y0 = rect_max(cover_first(k->c.y - k->outer) - 1, t->clip.y);
-    const int32_t y1 = rect_min(cover_first(k->c.y + k->outer) + 1, t->clip.y + t->clip.h);
-
-    for (int32_t y = y0; y < y1; y++) {
-        int32_t a0, a1, b0, b1;
-
-        if (!chord(k->c, k->outer, y, &a0, &a1))
-            continue;
-
-        if (!chord(k->c, k->inner, y, &b0, &b1)) {
-            piece(t, y, a0, a1, ctx);
-            continue;
-        }
-
-        piece(t, y, a0, b0, ctx);
-        piece(t, y, b1, a1, ctx);
-    }
-}
-
-static void ring_span(
-    const SoftTarget *const t,
-    const int32_t y,
-    const int32_t x0,
-    const int32_t x1,
-    const void *const ctx
-)
-{
-    span_flat(t, ctx, y, x0, x1);
+    const Ring *const r = ctx;
+    span_flat(r->t, &r->f, y, x0, x1);
 }
 
 void soft_circle(
@@ -192,41 +130,9 @@ void soft_circle(
 )
 {
     const Disc k = disc_of(c, r, fill);
-    const Flat f = span_flat_of(t, colour);
+    Ring ring = {t, span_flat_of(t, colour)};
 
-    ring(t, &k, ring_span, &f);
-}
-
-/* An arc's: its disc, sweep and filler. */
-typedef struct {
-    Disc k;
-    Sweep w;
-    Flat f;
-} Arc;
-
-/* The piece's runs in the sweep, a span each. */
-static void arc_piece(
-    const SoftTarget *const t,
-    const int32_t y,
-    const int32_t x0,
-    const int32_t x1,
-    const void *const ctx
-)
-{
-    const Arc *const a = ctx;
-    const float dy = (float)y - a->k.c.y;
-
-    for (int32_t x = x0; x < x1;) {
-        while (x < x1 && !swept(&a->w, (float)x - a->k.c.x, dy))
-            x++;
-
-        const int32_t from = x;
-
-        while (x < x1 && swept(&a->w, (float)x - a->k.c.x, dy))
-            x++;
-
-        span_flat(t, &a->f, y, from, x);
-    }
+    disc_runs(&k, nullptr, t->clip.y, t->clip.y + t->clip.h, ring_span, &ring);
 }
 
 void soft_arc(
@@ -238,9 +144,11 @@ void soft_arc(
     const uint32_t colour
 )
 {
-    const Arc a = {disc_of(c, r, false), sweep_of(start, finish), span_flat_of(t, colour)};
+    const Disc k = disc_of(c, r, false);
+    const Sweep w = sweep_of(start, finish);
+    Ring ring = {t, span_flat_of(t, colour)};
 
-    ring(t, &a.k, arc_piece, &a);
+    disc_runs(&k, &w, t->clip.y, t->clip.y + t->clip.h, ring_span, &ring);
 }
 
 void soft_rect(

@@ -2,10 +2,11 @@
 ;
 ; # How it works
 ; The vector is patched into the INT instruction's operand, as the code is writable under DOS/32A.
-; Also holds pdos_ds, pdos_cs, pdos_limit, pdos_cmdline and pdos_environ.
+; Also holds pdos_ds, pdos_cs, pdos_limit, pdos_cmdline, pdos_environ and the ports' words.
         .386
         .model  flat
         public  _pdos_int, _pdos_ds, _pdos_cs, _pdos_limit, _pdos_cmdline, _pdos_environ
+        public  _pdos_inw, _pdos_outw, _pdos_ind, _pdos_outd
         extern  LL$PSP:word
         extern  LL$ENVIRONMENT_READ:near
         .code
@@ -97,4 +98,27 @@ _pdos_cmdline:
         pop     edi
         pop     esi
         ret
+        ; uint16_t pdos_inw(uint16_t port); void pdos_outw(uint16_t port, uint16_t v)
+_pdos_inw:
+        mov     edx,[esp+4]
+        xor     eax,eax
+        in      ax,dx
+        ret
+_pdos_outw:
+        mov     edx,[esp+4]
+        mov     eax,[esp+8]
+        out     dx,ax
+        ret
+
+; uint32_t pdos_ind(uint16_t port); void pdos_outd(uint16_t port, uint32_t v)
+_pdos_ind:
+        mov     edx,[esp+4]
+        in      eax,dx
+        ret
+_pdos_outd:
+        mov     edx,[esp+4]
+        mov     eax,[esp+8]
+        out     dx,eax
+        ret
+
         end

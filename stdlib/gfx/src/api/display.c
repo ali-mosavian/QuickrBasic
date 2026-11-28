@@ -3,10 +3,12 @@
 #include "core/mem.h"
 
 enum {
-    OPEN_FLAGS = GFX_DISPLAY_VSYNC | GFX_DISPLAY_NATIVE | GFX_DISPLAY_FIT | GFX_DISPLAY_STRETCH,
+    OPEN_FLAGS = GFX_DISPLAY_VSYNC | GFX_DISPLAY_NATIVE | GFX_DISPLAY_FIT | GFX_DISPLAY_STRETCH |
+                 GFX_DISPLAY_DISCARD,
     RGB_MOST = 255,
 };
 static_assert(GFX_DISPLAY_VSYNC == QX_SCREEN_VSYNC);
+static_assert(GFX_DISPLAY_DISCARD == QX_SCREEN_DISCARD);
 
 static void close_screen(Gx *const g)
 {
@@ -62,7 +64,9 @@ int32_t gfx_display_open(const int32_t w, const int32_t h, const int32_t depth, 
         .h = (uint16_t)h,
         .depth = (uint8_t)depth,
         .flags = (uint8_t)flags,
-        .shaders = 1 << QX_SHADER_MSL | 1 << QX_SHADER_ESSL | 1 << QX_SHADER_SPIRV,
+        /* a fixed host draws indices from minor 7 */
+        .shaders = 1 << QX_SHADER_MSL | 1 << QX_SHADER_ESSL | 1 << QX_SHADER_SPIRV |
+                   (depth != 8 || qx_host->minor >= 7 ? 1 << QX_SHADER_FIXED : 0),
     };
 
     if (!qx_host->gfx_open(&s) || !format_of(s.depth, &format))

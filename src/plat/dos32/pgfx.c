@@ -11,7 +11,11 @@
  * closes. Its cursors are put back in the BIOS's data as each mode is set, which zeroes them, and
  * carried over the closing's mode set as they are then: the runtime moves the BIOS's lazily, when a
  * key is waited for. A program's graphics SCREEN is not kept.
+ *
+ * A screen played is a 3D accelerator's, its driver's for the card found (accel/accel.h): it plays
+ * gfx's FIXED lists, the text screen kept the same.
  */
+#include "accel/accel.h"
 #include "dos.h"
 #include "plat/pclk.h"
 #include "plat/pgfx.h"
@@ -22,11 +26,9 @@
 #include <string.h>
 
 enum : uint16_t {
-    VBE_SET = 0x4F02,
     VBE_WINDOW = 0x4F05,
     VBE_START = 0x4F07,
     VBE_OK = 0x004F,
-    VBE_USE_LINEAR = 0x4000,
     DAC_READ = 0x3C7,
     DAC_WRITE = 0x3C8,
     DAC_DATA = 0x3C9,
@@ -37,8 +39,6 @@ enum : uint32_t {
     BDA_CURSORS = 0x450,
     BDA_SHAPE = 0x460,
     BDA_PAGE = 0x462,
-    BDA_CURSOR_BYTES = BDA_PAGE + 1 - BDA_CURSORS,
-    MODES_MAX = 128,
     HZ_FRAMES = 4,
     MICRO = 1000000,
     NO_STEP = 0xFFFFFFFF,
@@ -46,8 +46,7 @@ enum : uint32_t {
 enum { CURSORS = 8, COLOURS = 256, DAC_BYTES = 3 * COLOURS };
 
 static struct {
-    bool listed;
-    VbeMode *modes; /* the ones gfx shows in, 13h's first */
+    const VbeMode *modes; /* the ones gfx shows in, 13h's first: null, not listed */
     uint32_t n;
     PdosVbe card;
     uint32_t mapped_base; /* the frame buffer mapped, at mapped */
@@ -72,7 +71,8 @@ static struct {
     /* the text screen kept: its memory, then its DAC */
     uint8_t *kept;
     PscrSize size;
-    uint8_t bios[BDA_CURSOR_BYTES]; /* the cursors, their shape and the page shown */
+
+    const PgfxPlayer *playing; /* the screen open, an accelerator's: null, none */
 } gfx;
 
 /* A VBE function with registers BX, CX, DX: whether it did it. */
@@ -88,30 +88,11 @@ static bool vbe(const uint16_t ax, const uint32_t bx, const uint32_t cx, const u
     return pdos_rm_int(INT_VIDEO, &rm) && (uint16_t)rm.eax == VBE_OK;
 }
 
-/* The modes gfx shows in: 13h, then the card's. */
-static void list(void)
+/* The modes gfx shows in, listed once. */
+static void listed(void)
 {
-    gfx.listed = true;
-    gfx.modes = pmem_resize(nullptr, (MODES_MAX + 1) * sizeof *gfx.modes);
-
     if (!gfx.modes)
-        return;
-
-    gfx.modes[gfx.n++] = vbe_mode_13h();
-    PdosBlock b;
-
-    if (!pdos_alloc(PDOS_VBE_BLOCK, &b))
-        return;
-
-    uint16_t numbers[MODES_MAX];
-    const uint32_t n = pdos_vbe_modes(&b, &gfx.card, numbers, MODES_MAX);
-
-    for (uint32_t i = 0; i < n; i++)
-        if (pdos_vbe_mode(&b, numbers[i]) &&
-            vbe_mode(numbers[i], gfx.card.version, b.at, &gfx.modes[gfx.n]))
-            gfx.n++;
-
-    pdos_free(&b);
+        gfx.modes = pdos_vbe_list(&gfx.n, &gfx.card);
 }
 
 /* The frame buffer at physical base, all of video memory: null, DPMI would not map it. */
@@ -120,20 +101,13 @@ static uint8_t *mapped(const uint32_t base)
     if (gfx.mapped && gfx.mapped_base == base)
         return gfx.mapped;
 
-    const uint32_t bytes = gfx.card.memory;
-    PdosRegs r = {
-        .eax = DPMI_MAP,
-        .ebx = base >> 16,
-        .ecx = base & 0xFFFF,
-        .esi = bytes >> 16,
-        .edi = bytes & 0xFFFF,
-    };
+    uint8_t *const at = (uint8_t *)pdos_map(base, gfx.card.memory);
 
-    if (!bytes || pdos_int(INT_DPMI, &r) & PDOS_CF)
+    if (!at)
         return nullptr;
 
     gfx.mapped_base = base;
-    gfx.mapped = (uint8_t *)(uintptr_t)(pdos_pair(r.ebx, r.ecx) - pdos_ds_base());
+    gfx.mapped = at;
     return gfx.mapped;
 }
 
@@ -206,15 +180,9 @@ static bool shown_in(const uint32_t i)
 
     gfx.row = row;
 
-    if (m->number == VBE_MODE_13H) {
-        PdosRegs r = {.eax = VBE_MODE_13H};
-
-        pdos_int(INT_VIDEO, &r);
-    } else if (!vbe(VBE_SET, m->number | (m->linear ? VBE_USE_LINEAR : 0), 0, 0)) {
+    if (!pdos_vbe_set(m))
         return false;
-    }
 
-    memcpy((uint8_t *)pdos_lin(BDA_CURSORS), gfx.bios, sizeof gfx.bios);
     gfx.screen = m->number == VBE_MODE_13H ? (uint8_t *)pdos_lin(m->base)
                  : m->linear               ? mapped(m->base)
                                            : nullptr;
@@ -274,7 +242,6 @@ static bool kept(void)
 
     gfx.size = pscr_size();
     memcpy(gfx.kept, (const uint8_t *)pdos_lin(TEXT), TEXT_BYTES);
-    memcpy(gfx.bios, (const uint8_t *)pdos_lin(BDA_CURSORS), sizeof gfx.bios);
     psys_outp(DAC_READ, 0);
 
     for (uint32_t i = 0; i < DAC_BYTES; i++)
@@ -307,6 +274,23 @@ static void restored(void)
     gfx.kept = nullptr;
 }
 
+static bool played_open(const uint16_t w, const uint16_t h, const uint8_t flags)
+{
+    PciFunction card;
+    const AccelDriver *const d = accel_driver(&card);
+
+    return d && accel_open(d, &card, w, h, flags);
+}
+
+static const PgfxPlayer played = {
+    .shaders = 1 << QX_SHADER_FIXED,
+    .y_down = true,
+    .open = played_open,
+    .close = accel_close,
+    .play = accel_play,
+    .read = accel_read,
+};
+
 /* The text screen kept, the screen shown in the mode chosen: false, it could not (none kept). */
 static bool shown(void)
 {
@@ -327,22 +311,30 @@ const PgfxPlayer *pgfx_open_played(
     const uint16_t w,
     const uint16_t h,
     const uint8_t shaders,
-    const bool vsync
+    const uint8_t flags
 )
 {
-    (void)w, (void)h, (void)shaders, (void)vsync;
     pgfx_close();
+
+    if (!(played.shaders & shaders) || !kept())
+        return nullptr;
+
+    if (played.open(w, h, flags)) {
+        gfx.playing = &played;
+        return gfx.playing;
+    }
+
+    restored(); /* a driver may have set a mode */
     return nullptr;
 }
 
-const PgfxPlayer *pgfx_playing(void) { return nullptr; }
+const PgfxPlayer *pgfx_playing(void) { return gfx.playing; }
 
 bool pgfx_open(const uint16_t w, const uint16_t h, const uint8_t depth, const bool vsync)
 {
     pgfx_close();
 
-    if (!gfx.listed)
-        list();
+    listed();
 
     const int32_t i = vbe_pick(gfx.modes, gfx.n, w, h, depth);
     const size_t bytes = (size_t)w * h * vbe_bytes(depth);
@@ -369,6 +361,12 @@ bool pgfx_open(const uint16_t w, const uint16_t h, const uint8_t depth, const bo
 
 void pgfx_close(void)
 {
+    if (gfx.playing) {
+        gfx.playing->close();
+        gfx.playing = nullptr;
+        restored();
+    }
+
     if (!gfx.page)
         return;
 
@@ -432,9 +430,13 @@ void pgfx_show(const uint32_t *const palette)
         gfx.drawn = !p;
 }
 
-void pgfx_play(const uint32_t *const list, const uint32_t words) { (void)list, (void)words; }
+void pgfx_play(const uint32_t *const list, const uint32_t words)
+{
+    if (gfx.playing)
+        gfx.playing->play(list, words);
+}
 
-float pgfx_hz(void) { return gfx.page ? gfx.hz : 0; }
+float pgfx_hz(void) { return gfx.playing ? accel_hz() : gfx.page ? gfx.hz : 0; }
 
 bool pgfx_shown(PgfxFrame *const f)
 {
@@ -446,8 +448,7 @@ uint32_t pgfx_monitors(void) { return 1; }
 
 uint32_t pgfx_modes(const uint32_t monitor, QxMode *const out, const uint32_t most)
 {
-    if (!gfx.listed)
-        list();
+    listed();
 
     if (monitor != 1)
         return 0;

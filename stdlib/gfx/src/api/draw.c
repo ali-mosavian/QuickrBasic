@@ -13,7 +13,7 @@ enum {
     POLY_MOST = 32, /* the scanner's SCAN_MAXV, less what a clip adds */
     DEPTHS = GFX_DRAW_DEPTH_TEST | GFX_DRAW_DEPTH_WRITE,
     POLY_FLAGS = SHAPE_FLAGS | DEPTHS | GFX_DRAW_PERSPECTIVE | GFX_DRAW_OPAQUE | GFX_DRAW_SOLID |
-                 GFX_DRAW_SMOOTH,
+                 GFX_DRAW_SMOOTH | GFX_DRAW_MIPMAP,
 };
 static_assert(!((SPRITE_FLAGS | POLY_FLAGS) & POLY_WRAP));
 
@@ -194,6 +194,14 @@ void gfx_draw_arc(
         );
 }
 
+/* Vertex v placed by the camera; its z kept when deep, else 1. */
+static Corner placed(const Place *const where, const gfx_draw_vertex *const v, const bool deep)
+{
+    const Vec at = cmd_at(where, (Vec){v->x, v->y});
+
+    return (Corner){at.x, at.y, deep ? v->z : 1, v->u, v->v};
+}
+
 /* x, y the first point, x2, y2 the last, after the camera; source s. A point's z counts only
    with PERSP or a depth flag, and must then be 1 or more. */
 void gfx_draw_poly(
@@ -243,35 +251,141 @@ void gfx_draw_poly(
         return;
 
     const Backend *const b = g->backend;
-    Corner placed[POLY_MOST];
+    Corner corners[POLY_MOST];
 
-    for (int32_t i = 0; i < n; i++) {
-        const Vec at = cmd_at(&where, (Vec){p[i].x, p[i].y});
-
-        placed[i] = (Corner){at.x, at.y, deep ? p[i].z : 1, p[i].u, p[i].v};
-    }
+    for (int32_t i = 0; i < n; i++)
+        corners[i] = placed(&where, &p[i], deep);
 
     if (s_) {
         const Source src = surf_source(&g->surfaces, (uint32_t)s_);
 
         if (b->source(g, &src))
-            b->poly(g, &src, placed, (uint32_t)n, (uint32_t)colour, flags);
+            b->poly(g, &src, corners, (uint32_t)n, (uint32_t)colour, flags);
 
         return;
     }
 
     if (flags & GFX_DRAW_FILL) {
-        b->poly(g, nullptr, placed, (uint32_t)n, (uint32_t)colour, flags);
+        b->poly(g, nullptr, corners, (uint32_t)n, (uint32_t)colour, flags);
         return;
     }
 
     Vec *const edges = gx_points(g, (uint32_t)n);
 
     for (int32_t i = 0; edges && i < n; i++)
-        edges[i] = (Vec){placed[i].x, placed[i].y};
+        edges[i] = (Vec){corners[i].x, corners[i].y};
 
     if (edges)
         b->outline(g, edges, (uint32_t)n, (uint32_t)colour);
+}
+
+/* Triangle t: src's texels, colour when src is null and flags fill, else its outline. */
+static void triangle(
+    Gx *const g,
+    const Source *const src,
+    const Corner *const t,
+    const int32_t colour,
+    const int32_t flags
+)
+{
+    if (src || (flags & GFX_DRAW_FILL)) {
+        g->backend->poly(g, src, t, 3, (uint32_t)colour, flags);
+        return;
+    }
+
+    Vec *const edges = gx_points(g, 3);
+
+    for (int32_t i = 0; edges && i < 3; i++)
+        edges[i] = (Vec){t[i].x, t[i].y};
+
+    if (edges)
+        g->backend->outline(g, edges, 3, (uint32_t)colour);
+}
+
+/* The n - 2 triangles of points(first) on, each point placed once: a strip's each point with
+   the two before it, a fan's with the one before it and the first. As poly's, a point's z
+   counts only with PERSP or a depth flag. */
+static void triangles(
+    const int32_t kind,
+    const int32_t dst,
+    const QxArray *const points,
+    const int32_t first,
+    const int32_t n,
+    const int32_t s_,
+    const int32_t colour,
+    const int32_t flags
+)
+{
+    Gx *const g = gx_get();
+
+    if (!g)
+        return;
+
+    const gfx_draw_vertex *const p = gx_elements(points, sizeof *p, first, n);
+
+    if (!p || (s_ && !gx_surface(g, (uint32_t)s_)))
+        return;
+
+    const bool deep = flags & (DEPTHS | GFX_DRAW_PERSPECTIVE);
+    bool near = true;
+
+    for (int32_t i = 0; i < n; i++)
+        near = near && (!deep || p[i].z >= 1);
+
+    if (gx_illegal(n < POLY_LEAST || !near, "fewer than 3 points, or one behind the camera"))
+        return;
+
+    Command c = drawn(kind, (Vec){p[0].x, p[0].y}, (Vec){p[n - 1].x, p[n - 1].y}, colour, flags);
+
+    c.source = (uint32_t)s_;
+    Place where;
+
+    if (!gx_draw(g, (uint32_t)dst, &c, POLY_FLAGS, &where))
+        return;
+
+    const Source src = s_ ? surf_source(&g->surfaces, (uint32_t)s_) : (Source){0};
+
+    if (s_ && !g->backend->source(g, &src))
+        return;
+
+    const bool fan = kind == GFX_DISPLAY_DREW_TRIANGLE_FAN;
+    Corner t[3] = {placed(&where, &p[0], deep), placed(&where, &p[1], deep)};
+
+    for (int32_t i = 2; i < n; i++) {
+        t[2] = placed(&where, &p[i], deep);
+        triangle(g, s_ ? &src : nullptr, t, colour, flags);
+
+        if (!fan)
+            t[0] = t[1];
+
+        t[1] = t[2];
+    }
+}
+
+void gfx_draw_triangle_strip(
+    const int32_t dst,
+    const QxArray *const points,
+    const int32_t first,
+    const int32_t n,
+    const int32_t s_,
+    const int32_t colour,
+    const int32_t flags
+)
+{
+    triangles(GFX_DISPLAY_DREW_TRIANGLE_STRIP, dst, points, first, n, s_, colour, flags);
+}
+
+void gfx_draw_triangle_fan(
+    const int32_t dst,
+    const QxArray *const points,
+    const int32_t first,
+    const int32_t n,
+    const int32_t s_,
+    const int32_t colour,
+    const int32_t flags
+)
+{
+    triangles(GFX_DISPLAY_DREW_TRIANGLE_FAN, dst, points, first, n, s_, colour, flags);
 }
 
 /* v names a pixel's centre. */
@@ -399,8 +513,7 @@ void gfx_draw_quad(
         return;
 
     shape_quad(s->w, s->h, world, flags, &where, v);
-    b->poly(g, &src, v, 3, 0, flags);
-    b->poly(g, &src, (const Corner[]){v[0], v[2], v[3]}, 3, 0, flags);
+    b->quad(g, &src, v, flags);
 }
 
 /* x, y the first point, x2, y2 the last, after the camera. The texture repeats along the points,
@@ -703,7 +816,8 @@ void gfx_draw_tiles(
 
             const float c = (float)col, r = (float)row;
             Turn t = first;
-            t.at = (Vec){first.at.x + c * across.x + r * down.x, first.at.y + c * across.y + r * down.y};
+            t.at = (Vec){first.at.x + c * across.x + r * down.x,
+                         first.at.y + c * across.y + r * down.y};
             b->turned(g, &p, &t, flags);
         }
 }

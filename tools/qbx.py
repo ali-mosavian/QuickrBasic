@@ -4,6 +4,8 @@
   qbx.py glue NAME OUTDIR INTERFACE...          the glue, from the BASIC interfaces
   qbx.py pack OUT [--minor N] INTERFACE... [TAG=SLICE]...  the .qbx: the interfaces and each
                                                           platform's slice; the host's minor it needs
+  qbx.py driver OUT DLL VENDOR:DEVICE...        a DOS accelerator's driver: the cards' PCI IDs, in hex,
+                                                then its DLL as an image whose entry is accel_init
 
 One interface is the module's own. Several are a package's parts, each named by its file: gfx's
 display.bas is gfx.display.
@@ -19,8 +21,11 @@ pack: a .qbx is little-endian: "QBX" 1Ah; the format's version, the ABI's major 
 needs, the slices' and the parts' counts (u16 each), 2 bytes 0; then a slice each, its tag (16
 bytes, 0-padded), offset and bytes (u32 each); then a part each, its name ("" the module's own)
 the same way. The slices follow, each at a multiple of 16, then the parts, each followed by 1Ah:
-the loader reads one as a source file from its offset. A dos-i386 slice given as its DLL is packed
-as the image util/image.c reads.
+the loader reads one as a source file from its offset. A dos-i386 slice is its DLL as lld-link
+wrote it, checked as util/image.c loads one.
+
+driver: a DOS accelerator's driver file, its DLL checked the same way and copied
+(src/plat/dos32/accel/driver.h).
 """
 
 import re
@@ -481,14 +486,12 @@ def align(n: int) -> int:
     return (n + 15) & ~15
 
 
-IMAGE = struct.Struct("<4sIIII")
-I386, PE32, HIGHLOW, ABSOLUTE, DISCARDABLE = 0x14C, 0x10B, 3, 0, 0x02000000
+I386, PE32, HIGHLOW, ABSOLUTE = 0x14C, 0x10B, 3, 0
 
 
-def image(dll: bytes) -> bytes:
-    """A DOS slice from an i386 DLL (lld-link /dll /noentry /nodefaultlib), as util/image.c reads
-    it: its sections where they lie in memory, rebased to 0, its trailing zeros left to the loader;
-    the offsets of its 32-bit words to relocate; its entry, qx_init_NAME. It must import nothing."""
+def checked(dll: bytes, *entries: bytes) -> bytes:
+    """dll, an i386 DLL (lld-link /dll /noentry /nodefaultlib), as util/image.c loads it: it imports nothing, exports a
+    name starting with each of entries, and each relocation is a 32-bit word's."""
     if dll[:2] != b"MZ" or len(dll) < 0x40:
         raise QbxError("dos-i386: not a DLL")
     pe = struct.unpack_from("<I", dll, 0x3C)[0]
@@ -498,65 +501,51 @@ def image(dll: bytes) -> bytes:
     opt = pe + 24
     if machine != I386 or struct.unpack_from("<H", dll, opt)[0] != PE32:
         raise QbxError("dos-i386: not an i386 DLL")
-    base, size, ndirs = (struct.unpack_from("<I", dll, opt + at)[0] for at in (28, 56, 92))
+    size, ndirs = (struct.unpack_from("<I", dll, opt + at)[0] for at in (56, 92))
     dirs = [struct.unpack_from("<II", dll, opt + 96 + 8 * i) for i in range(min(ndirs, 16))]
     if len(dirs) < 6:
         raise QbxError("dos-i386: a DLL without its exports and relocations")
     if dirs[1][1]:
         raise QbxError("dos-i386: the DLL imports: a slice imports nothing")
-    mem, discarded = bytearray(size), []
+    mem = bytearray(size)
     for i in range(nsections):
         _, vsize, va, rawsize, rawptr = struct.unpack_from("<8sIIII", dll, opt + optsize + 40 * i)
         n = min(vsize, rawsize) if vsize else rawsize
         mem[va : va + n] = dll[rawptr : rawptr + n]
-        if struct.unpack_from("<I", dll, opt + optsize + 40 * i + 36)[0] & DISCARDABLE:
-            discarded.append((va, n))  # .reloc: read here, not kept
 
     at, _ = dirs[0]
-    nnames, funcs, names, ords = struct.unpack_from("<IIII", mem, at + 24)
-    entry = None
-    for i in range(nnames):
-        name = mem[struct.unpack_from("<I", mem, names + 4 * i)[0] :].split(b"\0")[0]
-        if name.lstrip(b"_").startswith(b"qx_init_"):
-            entry = struct.unpack_from("<I", mem, funcs + 4 * struct.unpack_from("<H", mem, ords + 2 * i)[0])[0]
-    if entry is None:
-        raise QbxError("dos-i386: the DLL exports no qx_init_NAME")
+    nnames, _, names, _ = struct.unpack_from("<IIII", mem, at + 24)
+    exported = [mem[struct.unpack_from("<I", mem, names + 4 * i)[0] :].split(b"\0")[0] for i in range(nnames)]
+    for entry in entries:
+        if not any(name.startswith(entry) for name in exported):
+            raise QbxError(f"dos-i386: the DLL exports no {entry.decode()}")
 
-    relocs, at, end = [], dirs[5][0], dirs[5][0] + dirs[5][1]
+    at, end = dirs[5][0], dirs[5][0] + dirs[5][1]
     while at < end:
-        page, n = struct.unpack_from("<II", mem, at)
+        _, n = struct.unpack_from("<II", mem, at)
         for (word,) in struct.iter_unpack("<H", mem[at + 8 : at + n]):
-            if word >> 12 == ABSOLUTE:
-                continue
-            if word >> 12 != HIGHLOW:
+            if word >> 12 not in (ABSOLUTE, HIGHLOW):
                 raise QbxError(f"dos-i386: a relocation of type {word >> 12}")
-            rva = page + (word & 0xFFF)
-            struct.pack_into("<I", mem, rva, (struct.unpack_from("<I", mem, rva)[0] - base) & 0xFFFFFFFF)
-            relocs.append(rva)
         at += n
+    return dll
 
-    for va, n in discarded:
-        mem[va : va + n] = bytes(n)
-    stored = bytes(mem).rstrip(b"\0")
-    padded = stored + bytes(-len(stored) % 4)
-    return (
-        IMAGE.pack(b"QXI\x01", len(stored), size, entry, len(relocs))
-        + padded
-        + struct.pack(f"<{len(relocs)}I", *relocs)
-    )
+
+def driver(dll: bytes) -> bytes:
+    """A DOS accelerator's driver file: its DLL, exporting its cards' IDs and its entry."""
+    return checked(dll, b"accel_ids", b"accel_init")
 
 
 def pack(parts: dict[str, bytes], slices: dict[str, bytes], minor: int = MINOR) -> bytes:
     """The .qbx of its parts ("" the module's own interface) and its slices, by tag, needing the
-    host's minor. A DOS slice given as its DLL is made its image."""
+    host's minor. A DOS slice is checked as its loader loads it."""
     for tag in slices:
         if tag not in TAGS:
             raise QbxError(f"no platform {tag}: one of {', '.join(sorted(TAGS))}")
     for name in parts:
         if len(name) >= ENTRY.size - 8:
             raise QbxError(f"a part's name of {ENTRY.size - 9} letters at most: {name}")
-    if slices.get("dos-i386", b"")[:2] == b"MZ":
-        slices = {**slices, "dos-i386": image(slices["dos-i386"])}
+    if "dos-i386" in slices:
+        checked(slices["dos-i386"], b"qx_init_")
     at = align(HEAD.size + ENTRY.size * (len(slices) + len(parts)))
     table, body = [], bytearray()
     for tag, data in slices.items():
@@ -594,6 +583,9 @@ def main(argv: list[str]) -> int:
             pairs = [one.split("=", 1) for one in rest if "=" in one]
             slices = {tag: Path(file).read_bytes() for tag, file in pairs}
             Path(argv[2]).write_bytes(pack(parts, slices, minor))
+            return 0
+        if len(argv) == 4 and argv[1] == "driver":
+            Path(argv[2]).write_bytes(driver(Path(argv[3]).read_bytes()))
             return 0
     except QbxError as e:
         print(f"qbx.py {argv[1]}: {e}", file=sys.stderr)

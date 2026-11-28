@@ -337,7 +337,7 @@ def qbx_file():
     fc, ec, wc = THEME["front"], THEME["engine"], THEME["warn"]
 
     parts = [("header", "16 bytes", "front", 40), ("entries", "24 bytes each: slices, then parts", "front", 40),
-             ("slice dos-i386", "a QXI image", "engine", 34), ("slice macos", "a universal dylib", "engine", 34),
+             ("slice dos-i386", "an i386 DLL", "engine", 34), ("slice macos", "a universal dylib", "engine", 34),
              ("slice linux-x86_64", "an ELF .so", "engine", 34), ("slice wasm32", "a side module", "engine", 34),
              ('part ""', "the module's own interface", "warn", 34), ('part "display"', "a package's module", "warn", 34),
              ('part "draw"', "and so on, each + 1Ah", "warn", 34)]
@@ -361,14 +361,15 @@ def qbx_file():
     s.text(440, 326, "a slice's tag: this build's pext_tag is loaded, the rest skipped;", size=11, fill=MUTED)
     s.text(440, 342, 'a part\'s name: "" the module\'s own, else gfx.qbx/draw is "draw"', size=11, fill=MUTED)
 
-    s.text(440, 380, "dos-i386 slice: an image linked at 0 (util/image.c)", size=14, weight=700, fill=ec[2])
-    bar(s, 440, 402, 26.4, [(3, "QXI"), (1, "1"), (4, "stored"), (4, "size"), (4, "entry"), (4, "relocs")], "engine")
-    s.box(440, 454, 300, 32, "engine", r=3)
-    s.text(590, 474, "stored bytes, padded to 4", size=11, anchor="middle", mono=True)
-    s.box(746, 454, 222, 32, "engine", r=3)
-    s.text(857, 474, "relocs × 4-byte offset", size=11, anchor="middle", mono=True)
-    s.text(440, 508, "placed: zeroed past stored up to size (the bss), the block's address added", size=11, fill=MUTED)
-    s.text(440, 524, "to the 32-bit word at each offset, entry called (qx_init_<name>)", size=11, fill=MUTED)
+    s.text(440, 380, "dos-i386 slice: the DLL as lld-link wrote it (util/image.c)", size=14, weight=700, fill=ec[2])
+    x = 440
+    for label, w in (("MZ stub", 96), ("PE headers", 132), ("its sections", 184), (".reloc", 104)):
+        s.box(x, 402, w, 40, "engine", r=3)
+        s.text(x + w / 2, 427, label, size=11, anchor="middle", mono=True)
+        x += w + 4
+    s.text(440, 476, "placed: each section's bytes at its offset in a zeroed block, the block's", size=11, fill=MUTED)
+    s.text(440, 492, "address less the DLL's base added to each HIGHLOW word, qx_init_<name>,", size=11, fill=MUTED)
+    s.text(440, 508, "an export, called", size=11, fill=MUTED)
 
     hy, hh = at["header"]
     s.arrow([(342, hy + hh / 2), (436, 146)], color=fc[1])
@@ -411,8 +412,8 @@ def qbx_build():
     s.arrow([(252, 260), (512, 260)], color=LINE)
 
     s.panel(824, 172, 144, 100, "front", "qbx.py pack")
-    s.text(840, 222, "a DOS DLL made", size=11)
-    s.text(840, 238, "its QXI image;", size=11)
+    s.text(840, 222, "a DOS DLL", size=11)
+    s.text(840, 238, "checked;", size=11)
     s.text(840, 254, "the parts after", size=11)
     s.arrow([(252, 120), (272, 120), (272, 84), (896, 84), (896, 170)], color=wc[1], dash=True)
     s.box(824, 300, 144, 44, "warn", strong=True)

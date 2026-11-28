@@ -3,21 +3,16 @@
 #include "backend/gpu/shaders.h"
 #include "core/mem.h"
 
-enum {
-    BLENDS = QX_BLEND_KEEP + 1,
-    DEPTHS = (QX_DEPTH_TEST | QX_DEPTH_WRITE) + 1,
-    PLAIN_ATTRIBUTES = 5,
-    DISC_ATTRIBUTES = 7,
-};
+enum { PLAIN_ATTRIBUTES = 5, DISC_ATTRIBUTES = 7 };
 
 static_assert(offsetof(GpuDisc, v) == 0, "a disc's vertex is a plain one's attributes");
-static_assert(PIPELINE_KINDS * BLENDS * DEPTHS <= 64, "a pipeline a bit of Gpu.made");
+static_assert(PIPELINE_KINDS * PIPELINE_BLENDS * PIPELINE_DEPTHS <= GPU_PIPELINES);
 
 PipelineKind pipeline_kind(const GpuVertex *const v)
 {
-    const uint32_t plain = v->stages & ~(GPU_STAGE_KEYED | GPU_STAGE_WRAP | GPU_STAGE_TILE |
-                                         GPU_STAGE_EIGHT | GPU_STAGE_ALPHA | GPU_STAGE_FIFTEEN |
-                                         GPU_STAGE_SIXTEEN);
+    const uint32_t plain =
+        v->stages & ~(GPU_STAGE_KEYED | GPU_STAGE_WRAP | GPU_STAGE_TILE | GPU_STAGE_EIGHT |
+                      GPU_STAGE_ALPHA | GPU_STAGE_FIFTEEN | GPU_STAGE_SIXTEEN);
     const bool unlit = v->r == 255 && v->g == 255 && v->b == 255 && v->light == PAL_FULL;
     const bool eight = v->stages & GPU_STAGE_EIGHT;
 
@@ -27,9 +22,9 @@ PipelineKind pipeline_kind(const GpuVertex *const v)
                : PIPELINE_PLAIN;
 }
 
-uint32_t pipeline_id(const PipelineKind k, const QxBlend blend, const uint32_t depth)
+uint32_t pipeline_id(const uint32_t k, const QxBlend blend, const uint32_t depth)
 {
-    return 1 + (k * BLENDS + blend) * DEPTHS + depth;
+    return 1 + (k * PIPELINE_BLENDS + blend) * PIPELINE_DEPTHS + depth;
 }
 
 /* A language's code: each kind's vertex and fragment stages. */
@@ -85,7 +80,6 @@ bool pipeline_made(Gpu *const g, const PipelineKind k, const QxBlend blend, cons
     };
 
     const uint32_t id = pipeline_id(k, blend, depth);
-    const uint64_t bit = 1ull << (id - 1);
     const Code *const c = &codes[g->shader];
     uint32_t args[HEAD + sizeof attributes / sizeof(uint32_t)] = {
         id,
@@ -94,7 +88,7 @@ bool pipeline_made(Gpu *const g, const PipelineKind k, const QxBlend blend, cons
         LIST_TEXTURES,
     };
 
-    if (g->made & bit)
+    if (pipeline_known(g, id))
         return true;
 
     args[VERTEX_CODE] = c->vertex_bytes[k];
@@ -106,11 +100,12 @@ bool pipeline_made(Gpu *const g, const PipelineKind k, const QxBlend blend, cons
     if (!list_op(&g->list, QX_LIST_PIPELINE, args, HEAD + kinds[k].attributes * ATTRIBUTE))
         return false;
 
-    g->made |= bit;
+    pipeline_know(g, id);
     return true;
 }
 
 bool pipeline_speaks(const uint32_t language)
 {
-    return language < sizeof codes / sizeof *codes && codes[language].fragment[0];
+    return language == QX_SHADER_FIXED ||
+           (language < sizeof codes / sizeof *codes && codes[language].fragment[0]);
 }

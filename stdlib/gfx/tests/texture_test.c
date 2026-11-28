@@ -203,7 +203,7 @@ TEST(gfx_soft_perspective_trapezoid)
         {-0.5f, 3.5f, 0.5f, 0.5f, 4.5f},
     };
 
-    soft_poly(&t, &s, c, 4, 0, GFX_DRAW_OPAQUE | GFX_DRAW_PERSPECTIVE, false);
+    soft_poly(&t, &s, nullptr, c, 4, 0, GFX_DRAW_OPAQUE | GFX_DRAW_PERSPECTIVE, false);
 
     static const uint8_t want[8][16] = {
         {1, 1, 19, 21, 23, 25, 1, 1},
@@ -245,7 +245,7 @@ TEST(gfx_soft_tiles_wrap)
         {-0.5f, 11.5f, 1, -4, 8},
     };
 
-    soft_poly(&t, &s, c, 4, 0, GFX_DRAW_OPAQUE, false);
+    soft_poly(&t, &s, nullptr, c, 4, 0, GFX_DRAW_OPAQUE, false);
 
     for (uint32_t y = 0; y < 16; y++)
         for (uint32_t x = 0; x < 16; x++)
@@ -355,7 +355,7 @@ TEST(gfx_soft_strip_keeps_texels)
         {0, H, 1, 0, H},
     };
 
-    soft_poly(&t, &s, c, 4, 0, GFX_DRAW_OPAQUE, true);
+    soft_poly(&t, &s, nullptr, c, 4, 0, GFX_DRAW_OPAQUE, true);
 
     for (uint32_t y = 0; y < H; y++)
         for (uint32_t x = 0; x < N; x++)

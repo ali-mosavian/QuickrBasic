@@ -63,12 +63,13 @@ void pal_set(Palette *const p, const int32_t row, const uint32_t *const colours,
         forget(p);
 }
 
-uint8_t pal_nearest(const uint32_t *const row, const uint32_t rgb)
+/* The index in row from first nearest rgb. */
+static uint8_t nearest(const uint32_t *const row, const uint32_t rgb, const uint32_t first)
 {
-    uint8_t best = 0;
+    uint8_t best = (uint8_t)first;
     int32_t least = INT32_MAX;
 
-    for (uint32_t i = 0; i < PAL_COLOURS && least; i++) {
+    for (uint32_t i = first; i < PAL_COLOURS && least; i++) {
         const int32_t r = (int32_t)px_channel(row[i], 16) - (int32_t)px_channel(rgb, 16);
         const int32_t g = (int32_t)px_channel(row[i], 8) - (int32_t)px_channel(rgb, 8);
         const int32_t b = (int32_t)px_channel(row[i], 0) - (int32_t)px_channel(rgb, 0);
@@ -81,6 +82,13 @@ uint8_t pal_nearest(const uint32_t *const row, const uint32_t rgb)
     }
 
     return best;
+}
+
+uint8_t pal_nearest(const uint32_t *const row, const uint32_t rgb) { return nearest(row, rgb, 0); }
+
+uint8_t pal_nearest_drawn(const uint32_t *const row, const uint32_t rgb)
+{
+    return nearest(row, rgb, 1);
 }
 
 /* The map, made from row 0 when not there: each cell's centre's nearest index. */
@@ -140,12 +148,12 @@ static const uint8_t *light(Palette *const p)
 }
 
 /* The key of row, light and tint as the rows are now. */
-static PalKey key(const Palette *const p, const int32_t row, const int32_t l, const uint32_t tint)
+PalKey pal_key(const Palette *const p, const int32_t row, const int32_t l, const uint32_t tint)
 {
     return (PalKey){row, l, tint, {p->changed[0], p->changed[row]}};
 }
 
-static bool same(const PalKey a, const PalKey b)
+bool pal_same(const PalKey a, const PalKey b)
 {
     return a.row == b.row && a.light == b.light && a.tint == b.tint &&
            a.changed[0] == b.changed[0] && a.changed[1] == b.changed[1];
@@ -170,9 +178,9 @@ bool pal_lut(
         return table;
     }
 
-    const PalKey k = key(p, row, l, tint);
+    const PalKey k = pal_key(p, row, l, tint);
 
-    if (!p->lut || !same(p->lut_key, k)) {
+    if (!p->lut || !pal_same(p->lut_key, k)) {
         const uint8_t *const m = pal_map(p);
 
         if (!m || (!p->lut && !(p->lut = mem_alloc(PAL_COLOURS))))
@@ -190,9 +198,9 @@ bool pal_lut(
 
 const uint32_t *pal_argb(Palette *const p, const int32_t row, const int32_t l, const uint32_t tint)
 {
-    const PalKey k = key(p, row, l, tint);
+    const PalKey k = pal_key(p, row, l, tint);
 
-    if (p->argb && same(p->argb_key, k))
+    if (p->argb && pal_same(p->argb_key, k))
         return p->argb;
 
     if (!p->argb && !(p->argb = mem_alloc(PAL_COLOURS * sizeof *p->argb)))
@@ -214,9 +222,9 @@ const uint32_t *pal_pixels(
     const PxFormat into
 )
 {
-    const PalKey k = key(p, row, l, tint);
+    const PalKey k = pal_key(p, row, l, tint);
 
-    if (p->pixels && same(p->pixels_key, k) && p->pixels_from == from && p->pixels_into == into)
+    if (p->pixels && pal_same(p->pixels_key, k) && p->pixels_from == from && p->pixels_into == into)
         return p->pixels;
 
     const uint32_t *const argb = from == PX_8 ? pal_argb(p, row, l, tint) : nullptr;

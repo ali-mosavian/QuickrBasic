@@ -62,10 +62,15 @@ Turn shape_turn(
     gm_sincos(angle, &s, &c);
     const float dx = (-0.5f - anchor.x) * scale, dy = (-0.5f - anchor.y) * scale;
     const float cx = c * scale, sx = s * scale;
+    /* the turn's axes through the camera's m: shifted, as they are */
     Turn t = {
         .at = cmd_at(where, (Vec){a.x + c * dx - s * dy, a.y + s * dx + c * dy}),
-        .across = {where->m11 * cx + where->m12 * sx, where->m21 * cx + where->m22 * sx},
-        .down = {where->m12 * cx - where->m11 * sx, where->m22 * cx - where->m21 * sx},
+        .across = where->shifted
+                      ? (Vec){cx, sx}
+                      : (Vec){where->m11 * cx + where->m12 * sx, where->m21 * cx + where->m22 * sx},
+        .down = where->shifted
+                    ? (Vec){-sx, cx}
+                    : (Vec){where->m12 * cx - where->m11 * sx, where->m22 * cx - where->m21 * sx},
     };
 
     if (flags & GFX_DRAW_FLIP_X) {

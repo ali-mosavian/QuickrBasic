@@ -87,6 +87,51 @@ TEST(gfx_poly_filled_and_outlined)
     CHECK(CALL("draw.poly", I(SURF_SCREEN), ARRAY(&a), I(-2), I(3), I(0), I(4), I(0)).error == 9);
 }
 
+/* A strip's triangle is each point with the two before it; a fan's, each point with the one
+   before it and the first. These points as a strip, and the square's corners round as a fan, fill
+   the square from 1 to 6: the centres 1 to 5, the shared diagonal's once. Each drawn by the other's
+   rule leaves a corner of the square out. */
+TEST(gfx_triangle_strip_and_fan_fill_by_their_rules)
+{
+    gfx_draw_vertex strip[] = {{1, 1, 1, 0, 0}, {1, 6, 1, 0, 0}, {6, 1, 1, 0, 0}, {6, 6, 1, 0, 0}};
+    gfx_draw_vertex fan[] = {{1, 1, 1, 0, 0}, {6, 1, 1, 0, 0}, {6, 6, 1, 0, 0}, {1, 6, 1, 0, 0}};
+    QxArray a = gfx_array(strip, 4, sizeof *strip);
+    QxArray b = gfx_array(fan, 4, sizeof *fan);
+    const char *const names[] = {"draw.triangle_strip", "draw.triangle_fan"};
+    QxArray *const points[] = {&a, &b};
+
+    for (int32_t k = 0; k < 2; k++) {
+        CANVAS(8, 8);
+        CHECK(!CALL(
+                   names[k],
+                   I(SURF_SCREEN),
+                   ARRAY(points[k]),
+                   I(0),
+                   I(4),
+                   I(0),
+                   I(3),
+                   I(GFX_DRAW_FILL)
+        )
+                   .error);
+        ROW(0, "11111111");
+        ROW(1, "13333311");
+        ROW(2, "13333311");
+        ROW(3, "13333311");
+        ROW(4, "13333311");
+        ROW(5, "13333311");
+        ROW(6, "11111111");
+    }
+
+    CHECK(
+        CALL("draw.triangle_strip", I(SURF_SCREEN), ARRAY(&a), I(0), I(2), I(0), I(3), I(0))
+            .error == 5
+    );
+    CHECK(
+        CALL("draw.triangle_fan", I(SURF_SCREEN), ARRAY(&b), I(1), I(4), I(0), I(3), I(0)).error ==
+        9
+    );
+}
+
 /* The camera's point at the target's centre (3.5, 3.5), the view a quarter turn clockwise: the
    world's (x, y) lands at (y + 3.3, 3.8 - x). A rect's edges, half a pixel out, turn with it. */
 TEST(gfx_camera_turned_turns_and_zooms)

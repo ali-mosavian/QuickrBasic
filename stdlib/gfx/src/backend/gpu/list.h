@@ -15,8 +15,9 @@
 #include "backend/gpu/vertex.h"
 #include "qxlist.h"
 
-/* The list's buffers; a draw's textures. */
-enum { LIST_VERTICES = 1, LIST_DISCS, LIST_INDICES, LIST_TEXTURES = 3 };
+/* The list's buffers; a draw's textures; the bytes it holds before it is played, as a host keeps
+   a copy of what it plays. */
+enum { LIST_VERTICES = 1, LIST_DISCS, LIST_INDICES, LIST_TEXTURES = 3, LIST_MOST = 256 << 10 };
 
 typedef struct {
     uint32_t *words;
@@ -27,11 +28,11 @@ typedef struct {
     uint32_t ndiscs, capdiscs;
     uint32_t quads; /* the quads the indices cover */
     void **kept;
-    uint32_t nkept, capkept;
-    uint32_t draw;    /* the open draw's first word; 0 none */
-    bool shared;      /* its first texture does not matter */
-    uint32_t batches; /* its DRAWs */
-    uint32_t uploads; /* its UPLOADs */
+    uint32_t nkept, capkept, bytes; /* bytes: the kept memory's */
+    uint32_t draw;                  /* the open draw's first word; 0 none */
+    bool shared;                    /* its first texture does not matter */
+    uint32_t batches;               /* its DRAWs */
+    uint32_t uploads;               /* its UPLOADs */
 } GpuList;
 
 /* An empty list, its buffers none yet: false, no memory. */
@@ -54,6 +55,12 @@ bool list_draw(
     uint8_t alpha,
     bool shared
 );
+/* The last n vertices drawn, to change in place until the list is played. */
+static inline GpuVertex *list_last(const GpuList *const l, const uint32_t n)
+{
+    return l->vertices + l->nvertices - n;
+}
+
 /* n disc vertices drawn, as list_draw's. */
 bool list_discs(
     GpuList *l,
@@ -68,4 +75,6 @@ bool list_discs(
 const uint32_t *list_end(GpuList *l, uint32_t *n);
 /* Played: emptied, its kept memory freed. */
 void list_reset(GpuList *l);
+/* The bytes it holds: its words, vertices, discs and kept memory. */
+uint32_t list_bytes(const GpuList *l);
 #endif

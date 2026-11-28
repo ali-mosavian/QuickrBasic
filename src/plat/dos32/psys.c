@@ -7,6 +7,7 @@
 #include "dos.h"
 #include "plat/psys.h"
 #include "plat/pmem.h"
+#include <string.h>
 
 enum { ENV_MAX = 0x10000 }; /* the environment and the program's path at most */
 
@@ -49,24 +50,61 @@ uint32_t psys_environ(char *const buf, const uint32_t cap)
     return n + 1;
 }
 
-uint32_t psys_self(char *const buf, const uint32_t cap)
+/* The environment block, grown till it fits, its bytes to *n: pmem_free it. */
+static char *environment(uint32_t *const n)
 {
     char *env = nullptr;
-    uint32_t n = 0;
 
-    for (uint32_t size = 0x400; size <= ENV_MAX; size *= 2) { /* till the block fits */
+    *n = 0;
+
+    for (uint32_t size = 0x400; size <= ENV_MAX; size *= 2) {
         char *const grown = pmem_resize(env, size);
 
         if (!grown)
             break;
 
         env = grown;
-        n = pdos_environ(0, (uint8_t *)env, size);
+        *n = pdos_environ(0, (uint8_t *)env, size);
 
-        if (n < size)
+        if (*n < size)
             break;
     }
 
+    return env;
+}
+
+uint32_t pdos_env(const char *const name, char *const out, const uint32_t cap)
+{
+    uint32_t n;
+    char *const env = environment(&n);
+    const uint32_t name_n = (uint32_t)strlen(name);
+    uint32_t len = 0;
+
+    for (uint32_t i = 0; i < n && env[i]; i += (uint32_t)strlen(env + i) + 1) {
+        if (strncmp(env + i, name, name_n) || env[i + name_n] != '=')
+            continue;
+
+        const char *const value = env + i + name_n + 1;
+
+        len = (uint32_t)strlen(value);
+
+        if (cap) {
+            const uint32_t copied = len < cap ? len : cap - 1;
+
+            memcpy(out, value, copied);
+            out[copied] = 0;
+        }
+        break;
+    }
+
+    pmem_free(env);
+    return len;
+}
+
+uint32_t psys_self(char *const buf, const uint32_t cap)
+{
+    uint32_t n;
+    char *const env = environment(&n);
     uint32_t i = 0;
 
     while (i + 1 < n && (env[i] || env[i + 1])) /* the variables, a 0 after the last */

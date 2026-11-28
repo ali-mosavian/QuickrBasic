@@ -121,7 +121,7 @@ export class Gpu {
     this.canvas.width = this.w = w;
     this.canvas.height = this.h = h;
     this.state();
-    this.shown = this.made(w, h, RGBA);
+    this.shown = this.made(w, h, RGBA, 1);
     this.showing = this.hidden = false;
   }
 
@@ -174,7 +174,7 @@ export class Gpu {
       switch (w[at] & 0xff) {
         case OP.BUFFER: this.buffer(a[0], a[1], a[2]); break;
         case OP.WRITE: this.write(a[0], a[1], a[2]); break;
-        case OP.TEXTURE: this.texture(a[0], a[1], a[2], a[3]); break;
+        case OP.TEXTURE: this.texture(a[0], a[1], a[2], a[3], a.length > 4 ? a[4] : 1); break;
         case OP.FREE: this.free(a[0]); break;
         case OP.UPLOAD: this.upload(a); break;
         case OP.PIPELINE: this.pipeline(a); break;
@@ -233,13 +233,15 @@ export class Gpu {
     this.gl.bufferSubData(b.target, 0, this.bytes(at, bytes));
   }
 
-  // A texture w by h of format (QX_TEXTURE_*), RGBA with a framebuffer.
-  made(w, h, format) {
+  // A texture w by h of format (QX_TEXTURE_*) and its levels, RGBA with a framebuffer. A filter
+  // of levels, though texelFetch reads without one: so every level is the texture's.
+  made(w, h, format, levels) {
     const gl = this.gl, rgba = format === RGBA;
     const t = { t: gl.createTexture(), fb: null, w, h, rgba, depth: null };
     gl.bindTexture(gl.TEXTURE_2D, t.t);
-    gl.texStorage2D(gl.TEXTURE_2D, 1, rgba ? gl.RGBA8 : format === DEPTH ? gl.DEPTH_COMPONENT16 : gl.R8, w, h);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texStorage2D(gl.TEXTURE_2D, levels, rgba ? gl.RGBA8 : format === DEPTH ? gl.DEPTH_COMPONENT16 : gl.R8, w,
+      h);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, levels > 1 ? gl.NEAREST_MIPMAP_NEAREST : gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     if (rgba) {
       t.fb = gl.createFramebuffer();
@@ -250,9 +252,9 @@ export class Gpu {
     return t;
   }
 
-  texture(id, w, h, format) {
+  texture(id, w, h, format, levels) {
     this.free(id);
-    this.textures.set(id, this.made(w, h, format));
+    this.textures.set(id, this.made(w, h, format, levels));
   }
 
   drop(t) {
@@ -268,15 +270,15 @@ export class Gpu {
     this.textures.delete(id);
   }
 
-  // UPLOAD id, x, y, w, h, pitch, pointer.
+  // UPLOAD id, x, y, w, h, pitch, pointer, level.
   upload(a) {
     const gl = this.gl, t = this.textures.get(a[0]);
     if (!t) return;
     gl.bindTexture(gl.TEXTURE_2D, t.t);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     gl.pixelStorei(gl.UNPACK_ROW_LENGTH, a[5] / (t.rgba ? 4 : 1));
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, a[1], a[2], a[3], a[4], t.rgba ? gl.RGBA : gl.RED, gl.UNSIGNED_BYTE,
-      this.bytes(a[6], a[5] * a[4]));
+    gl.texSubImage2D(gl.TEXTURE_2D, a.length > 8 ? a[8] : 0, a[1], a[2], a[3], a[4], t.rgba ? gl.RGBA : gl.RED,
+      gl.UNSIGNED_BYTE, this.bytes(a[6], a[5] * a[4]));
   }
 
   // The stage's ESSL compiled: null, it would not.

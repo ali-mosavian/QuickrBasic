@@ -30,8 +30,10 @@
 #define QX_EXPORT __attribute__((visibility("default")))
 #endif
 
-/* Minor 4 adds the GPU list's depth (qxlist.h). */
-enum { QX_ABI = 1, QX_MINOR = 5 };
+/* Minor 4 adds the GPU list's depth (qxlist.h); minor 5 a call's error said with why; minor 6
+   the list's fixed pipeline (QX_SHADER_FIXED); minor 7 a fixed pipeline's INDEX targets, LOOKUP
+   and COLOURS; minor 8 a texture's levels. */
+enum { QX_ABI = 1, QX_MINOR = 8 };
 
 typedef struct QxCall QxCall;
 typedef void QX_CALL QxFn(QxCall *c);
@@ -67,16 +69,22 @@ typedef struct {
 } QxAudio;
 
 /* A shading language a GPU's host takes (qxlist.h's PIPELINE): MSL 2.0, ESSL 3.00 (WebGL2's),
-   SPIR-V 1.0 (Vulkan's). */
-typedef enum : uint8_t { QX_SHADER_MSL = 1, QX_SHADER_ESSL, QX_SHADER_SPIRV } QxShader;
+   SPIR-V 1.0 (Vulkan's); FIXED (minor 6), none: the host's fixed-function pipeline. */
+typedef enum : uint8_t {
+    QX_SHADER_MSL = 1,
+    QX_SHADER_ESSL,
+    QX_SHADER_SPIRV,
+    QX_SHADER_FIXED,
+} QxShader;
 
-/* A screen's flag the host reads: gfx_show and a list's SHOW wait for the display's refresh. */
-enum { QX_SCREEN_VSYNC = 1 };
+/* A screen's flags the host reads. VSYNC: gfx_show and a list's SHOW wait for the display's
+   refresh. DISCARD: after a SHOW the screen's pixels are undefined, so a host need not keep them. */
+enum { QX_SCREEN_VSYNC = 1, QX_SCREEN_DISCARD = 16 };
 
 /* A screen asked for (gfx_open), then what the host gives. */
 typedef struct {
     uint16_t w, h;         /* the canvas */
-    uint8_t depth, flags;  /* 8 bits a pixel; gfx.display's flags, QX_SCREEN_VSYNC among them */
+    uint8_t depth, flags;  /* 8 bits a pixel; gfx.display's flags, QX_SCREEN_'s among them */
     uint8_t shaders;       /* the languages the extension brings, 1 << QxShader each */
     bool gpu;              /* given: the host plays GPU lists (qxlist.h), else it lends pages */
     QxShader shader;       /* given with gpu: the language its pipelines are in */
@@ -140,7 +148,7 @@ typedef struct QxHost {
        host is done with the list's memory. */
     void(QX_CALL *gpu_play)(const uint32_t *list, uint32_t words);
     /* w by h pixels at x, y of a texture, as played so far, into out: bytes R, G, B and A, rows
-       top first. */
+       top first; an INDEX texture's index in each (minor 7). */
     void(QX_CALL
              *gpu_read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
     /* Minor 3. The monitors, numbered from 1. */

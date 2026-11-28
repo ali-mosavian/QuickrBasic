@@ -26,6 +26,7 @@
 #include "base/depth.h"
 #include "base/pixels.h"
 #include "backend/soft/fill.h"
+#include "core/levels.h"
 
 /* qgl's QVert: z is 1/z; 2D calls pass 1. */
 typedef struct {
@@ -103,8 +104,44 @@ void scan_affine(
     RowAffine *plain,
     RowAffine *held
 );
-/* As scan_affine, in perspective: u and v by 1/z, each row's run filled by fill. */
-void scan_persp(const ScanVert *v, uint32_t n, Rect clip, Rows *r, RowPersp *fill);
+/* A texture's levels for scan_persp: each level's rows, and its sides over level 0's. */
+typedef struct {
+    Rows rows[LEVELS_MOST];
+    float su[LEVELS_MOST], sv[LEVELS_MOST];
+    uint32_t n;
+} ScanLevels;
+
+/* Of n levels, the one whose texels are nearest a pixel where it steps (dudx, dvdx) texels
+   across and (dudy, dvdy) down: log2 of the longer step rounded, held to 0 through n - 1. Level
+   k is nearer than k - 1 from a step of 2^(k - 1/2), its square 2^(2k - 1). */
+static inline uint32_t scan_level(
+    const float dudx,
+    const float dvdx,
+    const float dudy,
+    const float dvdy,
+    const uint32_t n
+)
+{
+    const float across = dudx * dudx + dvdx * dvdx, down = dudy * dudy + dvdy * dvdy;
+    const float step = across > down ? across : down;
+    uint32_t k = 0;
+
+    for (float edge = 2; k + 1 < n && step >= edge; edge *= 4)
+        k++;
+
+    return k;
+}
+
+/* As scan_affine, in perspective: u and v by 1/z, each row's run filled by fill. levels, when
+   not null, gives each row the level its nearer end reads, and r is unused. */
+void scan_persp(
+    const ScanVert *v,
+    uint32_t n,
+    Rect clip,
+    Rows *r,
+    RowPersp *fill,
+    ScanLevels *levels
+);
 /* uglPutRotScl's: w by h texels, texel u, v at at + u * across + v * down, wholly inside clip:
    its four edges walked as scan_affine's, u and v at each row's ends the map's, a row down by
    additions; filled by rows, a pair of edges at a time. False, it is not wholly inside clip or

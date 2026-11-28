@@ -242,7 +242,7 @@ sub show_help ( _
     edge% = MARGIN * z%
     foot% = st.h - edge% - st.text_h
     t$ = "P palette   B bars"
-    label_shaded dst, edge%, edge%, t$, WHITE, BLACK, z%
+    label_shaded dst, st.top, edge%, edge%, t$, WHITE, BLACK, z%
     r$ = rate_text$(m)
-    label_shaded dst, edge%, foot%, r$, GREY, BLACK, z%
+    label_shaded dst, st.foot, edge%, foot%, r$, GREY, BLACK, z%
 end sub

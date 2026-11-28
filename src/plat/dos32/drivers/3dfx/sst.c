@@ -1,0 +1,629 @@
+/* The SST-1's and CVG's bring-up and chip shared (sst.h). */
+#include "plat/dos32/drivers/3dfx/sst.h"
+#include "plat/dos32/drivers/3dfx/regs.h"
+#include "plat/dos32/drivers/3dfx/setup.h"
+#include <stddef.h>
+
+enum : uint32_t {
+    MEMORY = 2, /* PCI command's memory decode */
+    BAR_MASK = 0xFF000000,
+    STALLS = 3,
+    PAGE = 4096,
+    TILE = 32,
+    ROWS_MOST = 1024, /* the clip's and the LFB's 10 bits */
+    BUFFERS = 3,
+    HALF = 0xFFFF,
+    HALF_AT = 16,
+    FRONT = 0, /* fbzMode's and lfbMode's buffers: the one shown, the other */
+    BACK = 1,
+    BASE = 0x7FFFF, /* texBaseAddr's: 8 bytes a unit */
+    BASE_UNIT = 3,
+    LFB_ROW = 2048, /* the frame buffer window's bytes a row */
+    PIXEL_AT = 1,
+    /* lfbMode's: the buffers read and written, the depth buffer read, depth written in pairs */
+    LFB_READ = 6,
+    LFB_WRITE = 4,
+    DEPTH = 2,
+    LFB_DEPTH_PAIRS = 15,
+    /* Glide's fbiMemSize layouts: 800x600's tiles across and pages a buffer, 640x480's */
+    WIDE_TILES = 26,
+    WIDE_PAGES = 247,
+    VGA_TILES = 20,
+    VGA_PAGES = 150,
+    WARMED = 100, /* the corner's clip, 0 to 100 each way */
+    PENDING = 28, /* status's swaps pending */
+    SWAPS = 7,
+    AHEAD = 1, /* swaps let pend */
+    /* the memory FIFO's: fbiInit4's first and last rows, its low-water mark; fbiInit0's high-water
+       mark in 32 entries, its burst's; status' entries free; an entry's bytes, the most entries;
+       the room Glide keeps over the high-water mark */
+    ROW_BASE = 8,
+    ROW_ROLL = 18,
+    ROWS_BITS = 0xFFFFFu << ROW_BASE,
+    MEMORY_LWM = 23u << 2,
+    MEMORY_LWM_BITS = 0x3Fu << 2,
+    HWM = 14,
+    HWM_BITS = 0x7FFu << HWM,
+    HWM_UNIT = 5,
+    BURST = 54u << 25,
+    BURST_BITS = 0x3Fu << 25,
+    MEMORY_FREE = 12,
+    ENTRY = 8,
+    ENTRIES_MOST = 57344,
+    MARGIN = 0x100,
+    FIFO_LEAST = 32 << 10, /* the frame buffer a FIFO keeps past the buffers */
+    /* the Voodoo 2's blitter: bltSrcBaseAddr, bltDstBaseAddr and bltXYStrides; bltSrcXY,
+       bltDstXY, bltSize and bltRop; bltCommand. A copy of the source, screen to screen between
+       tiled buffers, launched. */
+    BLIT_BASES = 0x2C0,
+    BLIT_PLACES = 0x2E0,
+    BLIT_COMMAND = 0x2F8,
+    BLIT_COPY = 0xCCCC,
+    BLIT = 3u << 14 | 1u << 31,
+    MARK = 0x5A5AA5A5, /* two pixels the blitter is tried on */
+    /* a register's place less its chip's; the setup unit's commands; the palette's run */
+    REGISTER = 0x3FF,
+    DRAW_COMMAND = SST_CORNER + 4 * TDFX_VDRAW,
+    BEGIN_COMMAND = SST_CORNER + 4 * TDFX_VBEGIN,
+    PALETTE_RUN = 8 * 4,
+};
+
+static uint32_t room; /* the FIFO's entries known free */
+static uint32_t tmus; /* the TMUs the last write went to alone, by the chip field: 0, none */
+static uint32_t lwm;  /* the memory FIFO's entries free kept: 0, it is off */
+static uint32_t buffer_pages; /* a colour buffer's */
+
+const SstMode *sst_mode_for(
+    const SstMode *const modes,
+    const uint32_t n,
+    const uint16_t w,
+    const uint16_t h,
+    const uint32_t bytes
+)
+{
+    const SstMode *best = nullptr;
+
+    for (uint32_t i = 0; i < n; i++) {
+        const SstMode *const m = &modes[i];
+        const bool fits = sst_pages(m, bytes) * PAGE / (m->tiles * TILE * 2u) >= m->h;
+        const bool holds = m->w >= w && m->h >= h;
+
+        if (fits && holds && (!best || (uint32_t)m->w * m->h < (uint32_t)best->w * best->h))
+            best = m;
+    }
+
+    return best;
+}
+
+void sst_changed(const Tdfx *const c, const uint32_t reg, const uint32_t clear, const uint32_t set)
+{
+    tdfx_put_init(c, reg, (tdfx_get(c, reg) & ~clear) | set);
+    tdfx_idle_fbi(c);
+}
+
+void sst_stalled(const Tdfx *const c)
+{
+    for (uint32_t i = 0; i < STALLS; i++)
+        tdfx_get(c, SST_STATUS);
+}
+
+void sst_reset(const Tdfx *const c)
+{
+    sst_changed(c, SST_FBI_INIT0, 0, SST_GRAPHICS_RESET | SST_FIFO_RESET);
+    sst_changed(c, SST_FBI_INIT0, SST_FIFO_RESET, 0);
+    sst_changed(c, SST_FBI_INIT0, SST_GRAPHICS_RESET, 0);
+}
+
+uint32_t sst_window(const Tdfx *const c) { return c->host->pci_read(&c->pci, SST_BAR0) & BAR_MASK; }
+
+bool sst_mapped(Tdfx *const c)
+{
+    const AccelHost *const host = c->host;
+
+    host->pci_write(&c->pci, SST_COMMAND, host->pci_read(&c->pci, SST_COMMAND) | MEMORY);
+
+    volatile uint8_t *const regs = host->map(sst_window(c), SST_WINDOW_BYTES);
+
+    if (!regs)
+        return false;
+
+    room = lwm = tmus = 0;
+    c->regs = regs;
+    c->status = (const volatile uint32_t *)(regs + SST_STATUS);
+    c->lfb = regs + SST_LFB;
+    c->lfb_row = LFB_ROW;
+    c->texels = regs + SST_TEXELS;
+    return true;
+}
+
+void sst_timed(const Tdfx *const c, const SstMode *const m)
+{
+    sst_changed(c, SST_FBI_INIT1, 0, SST_VIDEO_RESET);
+    tdfx_put_init(c, SST_HSYNC, m->hsync);
+    tdfx_put_init(c, SST_VSYNC, m->vsync);
+    tdfx_put_init(c, SST_BACK_PORCH, m->back_porch);
+    tdfx_put_init(c, SST_DIMENSIONS, (uint32_t)m->h << HALF_AT | (m->w - 1u));
+    tdfx_idle_fbi(c);
+}
+
+uint32_t sst_pages(const SstMode *const m, const uint32_t bytes)
+{
+    const uint32_t row_bytes = m->tiles * TILE * 2;
+    const uint32_t most = (bytes - FIFO_LEAST) / PAGE / BUFFERS,
+                   by_rows = ROWS_MOST * row_bytes / PAGE;
+
+    return most < by_rows ? most : by_rows;
+}
+
+void sst_laid_out(Tdfx *const c, const SstMode *const m, const uint32_t pages, const float clock)
+{
+    const uint32_t across = (m->hsync & HALF) + (m->hsync >> HALF_AT);
+    const uint32_t down = (m->vsync & HALF) + (m->vsync >> HALF_AT);
+
+    buffer_pages = pages;
+    c->stride = m->tiles * TILE;
+    c->rows = pages * PAGE / (c->stride * 2);
+    c->mode_w = m->w;
+    c->mode_h = m->h;
+    c->millihz = (uint32_t)(clock * 1e9f / (float)(across * down));
+}
+
+void sst_closed(const Tdfx *const c, const uint32_t shows)
+{
+    sst_changed(c, SST_FBI_INIT1, 0, SST_VIDEO_RESET | SST_BLANK);
+    sst_changed(c, SST_FBI_INIT2, SST_REFRESH, 0);
+    sst_reset(c);
+    sst_changed(c, SST_FBI_INIT0, SST_SHOWN, shows ^ SST_SHOWN);
+}
+
+void sst_stopped(const Tdfx *const c)
+{
+    c->host->pci_write(&c->pci, SST_VIDEO_OFF, 0);
+    c->host->pci_write(&c->pci, SST_INIT_ENABLE, 0);
+}
+
+uint32_t sst_after_buffers(const uint32_t pages) { return BUFFERS * pages * PAGE; }
+
+void sst_queued_in_memory(const Tdfx *const c, const uint32_t pages)
+{
+    const uint32_t first = sst_after_buffers(pages) / PAGE, rows = c->frame_bytes / PAGE;
+    const uint32_t spare = (rows - first - 1) * PAGE / ENTRY;
+    const uint32_t entries = spare < ENTRIES_MOST ? spare : ENTRIES_MOST;
+    const uint32_t hwm = (HALF - entries + (1u << HWM_UNIT) - 1) >> HWM_UNIT;
+
+    sst_changed(
+        c,
+        SST_FBI_INIT4,
+        ROWS_BITS | MEMORY_LWM_BITS,
+        first << ROW_BASE | (rows - 1) << ROW_ROLL | MEMORY_LWM
+    );
+    sst_changed(
+        c,
+        SST_FBI_INIT0,
+        SST_MEMORY_FIFO | HWM_BITS | SST_PCI_LWM_BITS | BURST_BITS,
+        hwm << HWM | SST_PCI_LWM | BURST | SST_MEMORY_FIFO
+    );
+    lwm = (hwm << HWM_UNIT | ((1u << HWM_UNIT) - 1)) + MARGIN;
+}
+
+/* The entries a write may take: the memory FIFO's free over its low-water mark, as Glide's
+   _grReCacheFifo; else the PCI FIFO's. */
+static uint32_t room_in(const uint32_t status)
+{
+    const uint32_t free = status >> MEMORY_FREE & HALF;
+
+    return !lwm ? status & SST_ROOM : free > lwm ? free - lwm : 0;
+}
+
+/* The FIFO's entries known free, free, else waited for: at least one. */
+static uint32_t roomy(Tdfx *const c, uint32_t free)
+{
+    while (!free)
+        free = room_in(tdfx_get(c, SST_STATUS));
+
+    return free;
+}
+
+/* A word to a window's at, as the FIFO has room. */
+static void stored(Tdfx *const c, volatile uint8_t *const at, const uint32_t v)
+{
+    room = roomy(c, room) - 1;
+    *(volatile uint32_t *)at = v;
+}
+
+/* A pixel written through the frame buffer's window, as the FIFO has room; one read. */
+static void pixel_put(Tdfx *const c, const uint32_t x, const uint32_t y, const uint16_t v)
+{
+    room = roomy(c, room) - 1;
+    *(volatile uint16_t *)(c->lfb + y * LFB_ROW + (x << PIXEL_AT)) = v;
+}
+
+static uint16_t pixel_at(const Tdfx *const c, const uint32_t x, const uint32_t y)
+{
+    return *(const volatile uint16_t *)(c->lfb + y * LFB_ROW + (x << PIXEL_AT));
+}
+
+/* The frame buffer laid out tiles across and pages a buffer, banked as 4 MB is. */
+static void laid(
+    Tdfx *const c,
+    SstTiled *const tiled,
+    const uint32_t tiles,
+    const uint32_t pages,
+    const bool banked
+)
+{
+    tiled(c, tiles);
+    sst_changed(
+        c,
+        SST_FBI_INIT2,
+        SST_PAGES_BITS | SST_BANKED,
+        pages << SST_PAGES | (banked ? SST_BANKED : 0)
+    );
+}
+
+/* 4 MB: depth written in 800x600's layout, its rows past 2 MB, reads back. */
+static bool four(Tdfx *const c, SstTiled *const tiled)
+{
+    laid(c, tiled, WIDE_TILES, WIDE_PAGES, true);
+    tdfx_put(c, SST_LFB_MODE, LFB_DEPTH_PAIRS | FRONT << LFB_WRITE | DEPTH << LFB_READ);
+    tdfx_idle_fbi(c);
+    pixel_put(c, 128, 100, 0xDEAD);
+    pixel_put(c, 0, 0, 0);
+    pixel_put(c, 798, 599, 0xFFFF);
+    pixel_put(c, 200, 200, 0x55AA);
+    pixel_put(c, 20, 20, 0xFFFF);
+    pixel_put(c, 400, 400, 0);
+    tdfx_idle_fbi(c);
+    return pixel_at(c, 128, 100) == 0xDEAD && pixel_at(c, 200, 200) == 0x55AA;
+}
+
+/* 2 MB: both colour buffers written in 640x480's, the back one's rows past 1 MB, read back. */
+static bool two(Tdfx *const c, SstTiled *const tiled)
+{
+    laid(c, tiled, VGA_TILES, VGA_PAGES, false);
+    tdfx_put(c, SST_LFB_MODE, FRONT << LFB_WRITE | FRONT << LFB_READ);
+    tdfx_idle_fbi(c);
+    pixel_put(c, 50, 100, 0xDEAD);
+    pixel_put(c, 0, 0, 0);
+    pixel_put(c, 638, 479, 0xFFFF);
+    tdfx_put(c, SST_LFB_MODE, BACK << LFB_WRITE | FRONT << LFB_READ);
+    tdfx_idle_fbi(c);
+    pixel_put(c, 178, 436, 0xAA55);
+    pixel_put(c, 20, 20, 0);
+    pixel_put(c, 400, 400, 0xFFFF);
+    tdfx_idle_fbi(c);
+
+    if (pixel_at(c, 50, 100) != 0xDEAD)
+        return false;
+
+    tdfx_put(c, SST_LFB_MODE, BACK << LFB_READ);
+    tdfx_idle_fbi(c);
+    return pixel_at(c, 178, 436) == 0xAA55;
+}
+
+/* 1 MB: the front buffer written in 640x480's, read back. */
+static bool one(Tdfx *const c)
+{
+    tdfx_put(c, SST_LFB_MODE, FRONT << LFB_WRITE | FRONT << LFB_READ);
+    tdfx_idle_fbi(c);
+    pixel_put(c, 10, 10, 0xDEAD);
+    pixel_put(c, 8, 8, 0);
+    pixel_put(c, 340, 340, 0xFFFF);
+    pixel_put(c, 100, 200, 0x5A5A);
+    pixel_put(c, 66, 0, 0);
+    pixel_put(c, 360, 360, 0xFFFF);
+    tdfx_idle_fbi(c);
+    return pixel_at(c, 10, 10) == 0xDEAD && pixel_at(c, 100, 200) == 0x5A5A;
+}
+
+uint32_t sst_sized(Tdfx *const c, SstTiled *const tiled)
+{
+    const uint32_t init0 = tdfx_get(c, SST_FBI_INIT0), init1 = tdfx_get(c, SST_FBI_INIT1);
+    const uint32_t init2 = tdfx_get(c, SST_FBI_INIT2);
+
+    sst_changed(c, SST_FBI_INIT0, SST_MEMORY_FIFO, 0);
+    sst_changed(c, SST_FBI_INIT2, 0, SST_REFRESH);
+
+    /* the DRAM run up first, as sst1InitRegisters has it: a corner fast filled */
+    laid(c, tiled, VGA_TILES, VGA_PAGES, false);
+    tdfx_put(c, SST_COLOUR1, 0);
+    tdfx_put(c, SST_COLOUR0, 0);
+    tdfx_put(c, SST_ZA_COLOUR, 0);
+    tdfx_put(c, SST_CLIP_X, WARMED);
+    tdfx_put(c, SST_CLIP_Y, WARMED);
+    tdfx_put(c, SST_FBZ_MODE, SST_RGB_WRITE | SST_AUX_WRITE | FRONT << SST_DRAW_BUFFER);
+    tdfx_put(c, SST_FASTFILL, 0);
+    tdfx_put(c, SST_NOP, 1);
+    tdfx_idle_fbi(c);
+
+    const uint32_t mb = four(c, tiled) ? 4 : two(c, tiled) ? 2 : one(c) ? 1 : 0;
+
+    tdfx_put_init(c, SST_FBI_INIT0, init0);
+    tdfx_put_init(c, SST_FBI_INIT1, init1);
+    tdfx_put_init(c, SST_FBI_INIT2, init2);
+    tdfx_idle_fbi(c);
+    return mb << 20;
+}
+
+/* Before a write to the TMUs `to` alone (0, to every chip, the FBI or a window), the SST-1's PCI
+   packer flushed if the last went elsewhere, as Glide brackets TMU writes, by a word no TMU takes:
+   fenced on each side combined. */
+static void unpacked(Tdfx *const c, const uint32_t to)
+{
+    if (!c->packer || to == tmus)
+        return;
+
+    tmus = to;
+    tdfx_fenced(c);
+    stored(c, c->packer, 0);
+    tdfx_fenced(c);
+}
+
+/* Whether a write to reg acts rather than being held: a command, or the palette's port. */
+static bool acts(const uint32_t reg)
+{
+    const uint32_t r = reg & REGISTER;
+
+    return r == SST_FTRIANGLE || (r >= SST_NOP && r <= SST_SWAP) || r == DRAW_COMMAND ||
+           r == BEGIN_COMMAND || r == BLIT_COMMAND ||
+           (r >= SST_PALETTE && r < SST_PALETTE + PALETTE_RUN);
+}
+
+/* As many words at a time as the FIFO has room for, counted in locals: a store through the
+   window could alias room and p's count, read again each word. Write-combined, a last word that
+   acts is fenced on each side, as Glide's P6FENCE_CMD: the words before it reach the card first,
+   and the next to its register is not merged with it. */
+static void put(
+    Tdfx *const c,
+    const uint32_t reg,
+    const TdfxPicks *const p,
+    const uint32_t *const v
+)
+{
+    volatile uint32_t *const to = (volatile uint32_t *)(c->regs + reg);
+    const uint32_t n = p->n, last = n ? p->at[n - 1] : 0;
+    const bool fenced = c->fence && n && acts(reg + 4 * last);
+    const uint32_t held = fenced ? n - 1 : n;
+
+    unpacked(c, reg & SST_TMUS);
+
+    uint32_t free = room;
+
+    for (uint32_t k = 0; k < held;) {
+        free = roomy(c, free);
+
+        const uint32_t end = held - k < free ? held : k + free;
+
+        free -= end - k;
+
+        for (; k < end; k++) {
+            const uint32_t i = p->at[k];
+
+            to[i] = v[i];
+        }
+    }
+
+    if (fenced) {
+        free = roomy(c, free) - 1;
+        c->fence();
+        to[last] = v[last];
+        c->fence();
+    }
+
+    room = free;
+}
+
+/* Straight from v, as put but without a corner's copy and a call each: MEADOW's frame on the 486
+   spent 133k cycles on the Voodoo 2's corners that way, 72k this. */
+static void put_corners(Tdfx *const c, const uint32_t *v, const uint32_t n, const bool fan)
+{
+    const TdfxPicks *const p = &c->way->corner;
+    volatile uint32_t *const to = (volatile uint32_t *)(c->regs + SST_CORNER);
+    const uint32_t words = p->n;
+
+    uint32_t free = room, third = 0;
+
+    unpacked(c, 0);
+
+    for (uint32_t i = 0; i < n; i++, v += words) {
+        while (free <= words)
+            free = room_in(tdfx_get(c, SST_STATUS));
+
+        for (uint32_t k = 0; k < words; k++)
+            to[p->at[k]] = v[k];
+
+        free -= words + 1;
+
+        if (c->fence)
+            c->fence();
+
+        to[(fan ? i : third) ? TDFX_VDRAW : TDFX_VBEGIN] = 0;
+        third = third == 2 ? 0 : third + 1;
+
+        if (c->fence)
+            c->fence();
+    }
+
+    room = free;
+}
+
+uint32_t sst_based(const Tdfx *const c, const uint32_t at)
+{
+    (void)c;
+    return at >> BASE_UNIT & BASE;
+}
+
+static void uploaded(
+    Tdfx *const c,
+    const TdfxTexture *const t,
+    const uint32_t k,
+    const AccelRect r,
+    const uint16_t *const texels,
+    const uint32_t pitch
+)
+{
+    const uint32_t a_word = t->indexed ? 4 : 2, words = (uint32_t)r.w / a_word;
+    const uint32_t x = t->indexed ? (uint32_t)r.x : (uint32_t)r.x << SST_TEXEL_AT;
+    volatile uint8_t *const level = c->texels + ((t->level + k) << SST_LEVEL_AT) + x;
+
+    unpacked(c, 0);
+
+    uint32_t free = room;
+
+    for (uint32_t y = 0; y < (uint32_t)r.h; y++) {
+        const uint16_t *const row = texels + (size_t)y * pitch;
+        volatile uint32_t *const to =
+            (volatile uint32_t *)(level + ((uint32_t)(r.y + (int32_t)y) << SST_ROW_AT));
+
+        for (uint32_t k = 0; k < words;) {
+            free = roomy(c, free);
+
+            const uint32_t end = words - k < free ? words : k + free;
+
+            free -= end - k;
+
+            if (t->indexed)
+                for (; k < end; k++)
+                    to[k] = tdfx_indices(row + 4 * k);
+            else
+                for (; k < end; k++)
+                    to[k] = tdfx_pair(row + 2 * k);
+        }
+    }
+
+    room = free;
+}
+
+void sst_paletted(Tdfx *const c) { (void)c; }
+
+/* Colour buffer `buffer` as fbzMode and lfbMode name it. */
+static uint32_t side_of(const Tdfx *const c, const uint32_t buffer)
+{
+    return buffer == c->shown ? FRONT : BACK;
+}
+
+uint32_t sst_drawn_in(Tdfx *const c, const uint32_t buffer) { return side_of(c, buffer); }
+
+volatile uint8_t *sst_pixels(Tdfx *const c, const uint32_t buffer)
+{
+    tdfx_put(c, SST_LFB_MODE, side_of(c, buffer) << LFB_READ);
+    return c->lfb;
+}
+
+/* Through the frame buffer's window, two pixels a word: read once the card is idle, written raw
+   as the FIFO has room, depth as pairs of it. */
+static void copied(
+    Tdfx *const c,
+    const uint32_t buffer,
+    const AccelRect r,
+    uint16_t *const pixels,
+    const bool back
+)
+{
+    const bool depth = buffer == TDFX_DEPTH;
+    const uint32_t w = (uint32_t)r.w;
+
+    if (back) {
+        tdfx_put(c, SST_LFB_MODE, depth ? LFB_DEPTH_PAIRS : side_of(c, buffer) << LFB_WRITE);
+    } else {
+        tdfx_put(c, SST_LFB_MODE, (depth ? DEPTH : side_of(c, buffer)) << LFB_READ);
+        tdfx_idle(c);
+    }
+
+    for (uint32_t y = 0; y < (uint32_t)r.h; y++) {
+        volatile uint8_t *const row =
+            c->lfb + ((uint32_t)r.y + y) * LFB_ROW + ((uint32_t)r.x << PIXEL_AT);
+        uint16_t *const p = pixels + (size_t)y * w;
+
+        for (uint32_t x = 0; x < w; x += 2) {
+            volatile uint8_t *const at = row + (x << PIXEL_AT);
+
+            if (back) {
+                stored(c, at, p[x] | (uint32_t)p[x + 1] << 16);
+            } else {
+                const uint32_t pair = *(const volatile uint32_t *)at;
+
+                p[x] = (uint16_t)pair;
+                p[x + 1] = (uint16_t)(pair >> 16);
+            }
+        }
+    }
+}
+
+/* At most AHEAD swaps pending, one waiting on the retrace while the next frame is drawn. */
+static void shown(Tdfx *const c, const bool vsync)
+{
+    const uint64_t until = c->host->clock_us() + TDFX_WAIT_US;
+
+    while ((tdfx_get(c, SST_STATUS) >> PENDING & SWAPS) > AHEAD && c->host->clock_us() < until)
+        ;
+
+    tdfx_put(c, SST_SWAP, vsync);
+}
+
+/* w by h pixels at x, y of the shown buffer copied to the other's by the Voodoo 2's blitter, in
+   order with the draws. */
+static void blitted(
+    Tdfx *const c,
+    const uint32_t x,
+    const uint32_t y,
+    const uint32_t w,
+    const uint32_t h
+)
+{
+    const uint32_t tiles = c->stride / TILE, at = y << HALF_AT | x;
+    const uint32_t bases[] = {
+        c->shown * buffer_pages,
+        (c->shown ^ 1) * buffer_pages,
+        tiles << HALF_AT | tiles,
+    };
+    const uint32_t places[] = {at, at, (h - 1) << HALF_AT | (w - 1), BLIT_COPY};
+
+    tdfx_put_run(c, BLIT_BASES, bases, sizeof bases / sizeof *bases);
+    tdfx_put_run(c, BLIT_PLACES, places, sizeof places / sizeof *places);
+    tdfx_put(c, BLIT_COMMAND, BLIT);
+}
+
+bool sst_blits(Tdfx *const c)
+{
+    tdfx_put(c, SST_LFB_MODE, FRONT << LFB_WRITE);
+    stored(c, c->lfb, MARK);
+    tdfx_put(c, SST_LFB_MODE, BACK << LFB_READ | BACK << LFB_WRITE);
+    stored(c, c->lfb, ~MARK);
+    blitted(c, 0, 0, 2, 1);
+    tdfx_idle(c);
+    return *(const volatile uint32_t *)c->lfb == MARK;
+}
+
+/* By the blitter; else through the frame buffer's window, pixel by pixel. */
+void sst_carried(Tdfx *const c)
+{
+    if (c->blits) {
+        blitted(c, c->left, c->top, c->w, c->h);
+        return;
+    }
+
+    tdfx_put(c, SST_LFB_MODE, FRONT << LFB_READ | BACK << LFB_WRITE);
+    tdfx_idle(c);
+
+    for (uint32_t y = c->top; y < c->top + c->h; y++)
+        for (uint32_t x = c->left & ~1u; x < c->left + c->w; x += 2) {
+            volatile uint8_t *const at = c->lfb + y * LFB_ROW + (x << PIXEL_AT);
+            stored(c, at, *(const volatile uint32_t *)at);
+        }
+}
+
+const TdfxChip sst_chip = {
+    SST_BUSY,
+    put,
+    sst_based,
+    uploaded,
+    sst_drawn_in,
+    sst_pixels,
+    shown,
+    sst_carried,
+    sst_paletted,
+    nullptr,
+    put_corners,
+    copied,
+};

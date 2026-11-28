@@ -160,7 +160,10 @@ static uint32_t shown_after(
     return 0;
 }
 
-static bool fake_open(const uint16_t w, const uint16_t h) { return (void)w, (void)h, true; }
+static bool fake_open(const uint16_t w, const uint16_t h, const uint8_t flags)
+{
+    return (void)w, (void)h, (void)flags, true;
+}
 
 static void fake_close(void) {}
 

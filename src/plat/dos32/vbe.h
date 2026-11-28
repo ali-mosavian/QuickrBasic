@@ -38,6 +38,9 @@ VbeFit vbe_fit(const VbeMode *m, uint16_t w, uint16_t h);
 /* Of n modes, the one that shows a w by h canvas of depth bits: of its size, else the least that
    holds it, its whole multiples first. -1, none. */
 int32_t vbe_pick(const VbeMode *modes, uint32_t n, uint16_t w, uint16_t h, uint8_t depth);
+/* The smallest of n modes of depth with a linear frame buffer holding a w by h canvas at its own
+   size: its index; -1, none. */
+int32_t vbe_holding(const VbeMode *modes, uint32_t n, uint16_t w, uint16_t h, uint8_t depth);
 /* w pixels of `bytes` each from `from`, each k times across `to`. */
 void vbe_widen(uint8_t *to, const uint8_t *from, uint32_t w, uint8_t bytes, uint16_t k);
 /* Of n bytes at video memory offset `at`, the most one window position holds: *step the window's

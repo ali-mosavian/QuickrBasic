@@ -37,8 +37,20 @@ enum : Sngl { SNGL_MIN_I32 = 0xCF000000 /* -2^31 */ };
 
 static inline uint32_t fmth_exponent(const Sngl a) { return a >> SNGL_EXP_SHIFT & SNGL_EXP_MASK; }
 
-/* fistp dword: to the nearest, a half to even; INT32_MIN past the range (the indefinite). */
-static inline int32_t fmth_rint32(const Sngl a) { return pfpu_rint32(sngl_val(a)); }
+/* fistp dword: to the nearest, a half to even; INT32_MIN past the range (the indefinite). A whole a
+   from 1 up to 2^23, as a loop's counter is, by its bits: a 486's fistp costs 30 cycles. */
+static inline int32_t fmth_rint32(const Sngl a)
+{
+    const uint32_t up = fmth_exponent(a) - FBIAS; /* its whole bits less one; under 1, past */
+
+    if (up < SNGL_EXP_SHIFT && !(a << (1 + 8 + up))) { /* past the sign, exponent and whole bits */
+        const int32_t m = (int32_t)(((a & SNGL_MANT) | SNGL_IMPLICIT) >> (SNGL_EXP_SHIFT - up));
+
+        return a & SNGL_SIGN ? -m : m;
+    }
+
+    return pfpu_rint32(sngl_val(a));
+}
 
 /* a rounded to the nearest, a half to even; ?ILLEGAL QUANTITY out of the type's range. */
 int16_t fmth_to_i16(Fault *f, Sngl a);

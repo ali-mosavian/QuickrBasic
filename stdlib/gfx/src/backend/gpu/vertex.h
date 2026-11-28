@@ -20,9 +20,10 @@ enum {
     GPU_STAGE_FIFTEEN = 4096, /* into a 15-bit target: 5 bits a channel kept */
     GPU_STAGE_SIXTEEN = 8192, /* into a 16-bit target: 5 bits a channel kept, green's 6 */
     GPU_STAGE_TILE = 16384,   /* u and v repeat across the rectangle (px_tiles) */
+    GPU_STAGE_MIPMAP = 32768, /* read from the level nearest the texels a pixel steps */
 };
 
-/* x, y a pixel's centre at whole numbers; z its depth, 1/z of a corner's z (0 far, as gfx's
+/* x, y a pixel's centre at whole numbers, a fixed host's at halves; z its depth, 1/z of a corner's z (0 far, as gfx's
    depth); w its z where texels go in perspective, else 1. u, v texels, the one at a pixel's centre
    drawn, kept inside the rectangle rx, ry, rw by rh. Its colour is the texel's lit by light and
    tinted by r, g, b as software's ink (soft/ink.h); SOLID's, r, g, b. alpha: 0 to 63. */

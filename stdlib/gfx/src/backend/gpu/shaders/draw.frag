@@ -9,7 +9,8 @@
 // pal_blend's table. An index texel is in red, or alpha with ALPHA. Into a 15- or 16-bit target
 // (FIFTEEN, SIXTEEN) a colour keeps a channel's top bits, as software's pixel does. SMOOTH
 // mixes the four texels round the centre, lit, as software's smooth span does, a keyed one adding
-// nothing, and draws where they are mostly kept.
+// nothing, and draws where they are mostly kept. MIPMAP reads the level nearest the texels the
+// pixel steps, as software's scan_level picks it, the rectangle's texels scaled to it.
 #version 450
 
 const uint INDEXED = 1u;
@@ -27,8 +28,12 @@ const uint ALPHA = 2048u;
 const uint FIFTEEN = 4096u;
 const uint SIXTEEN = 8192u;
 const uint TILE = 16384u;
+const uint MIPMAP = 32768u;
 
 const uint FULL = 63u;
+// core/levels.h's
+const uint LEVELS_LEAST = 4u;
+const uint LEVELS_MOST = 16u;
 
 // ESSL's samplers are named by binding (qx/qxlist.h).
 layout(set = 2, binding = 0) uniform sampler2D s0;
@@ -47,6 +52,42 @@ layout(location = 5) flat in vec4 v_disc;
 layout(location = 6) flat in vec4 v_sweep;
 
 layout(location = 0) out vec4 colour;
+
+// The level read, and the pixel's texel in it: v_texel at level 0.
+uint level = 0u;
+vec2 at = vec2(0.0);
+
+// The levels of a rectangle w by h, as levels_of.
+uint levels_of(uvec2 size)
+{
+    uint shorter = min(size.x, size.y), n = 1u;
+
+    while (n < LEVELS_MOST && shorter >> n >= LEVELS_LEAST)
+        n++;
+
+    return n;
+}
+
+// Of n levels, the one nearest a pixel's steps dx, dy: k from a step of 2^(k - 1/2), as
+// scan_level.
+uint level_of(vec2 dx, vec2 dy, uint n)
+{
+    float step = max(dot(dx, dx), dot(dy, dy)), edge = 2.0;
+    uint k = 0u;
+
+    for (; k + 1u < n && step >= edge; edge *= 4.0)
+        k++;
+
+    return k;
+}
+
+// The rectangle's texels at the level: its place and size halved, t scaled to them.
+vec2 scaled(vec2 t)
+{
+    vec2 from = vec2(v_rect.xy), size = vec2(v_rect.zw);
+    vec2 to = vec2(v_rect.xy >> level), sized = vec2(v_rect.zw >> level);
+    return to + (t - from) * sized / size;
+}
 
 // d, from the centre, is within r: each product and sum rounded once (precise), as in C.
 bool within(float dx, float dy, float r)
@@ -136,10 +177,10 @@ vec3 held(uvec3 c, uint stages)
     return vec3(v << (8u - bits) | v >> (2u * bits - 8u)) / 255.0;
 }
 
-// The texel at t, kept in the rectangle (u repeating with WRAP, u and v with TILE).
+// The texel at t, kept in the rectangle (u repeating with WRAP, u and v with TILE), at the level.
 vec4 fetched(ivec2 t, uint stages)
 {
-    ivec2 from = ivec2(v_rect.xy), size = ivec2(v_rect.zw);
+    ivec2 from = ivec2(v_rect.xy >> level), size = ivec2(v_rect.zw >> level);
 
     if ((stages & WRAP) != 0u)
         t.x = from.x + int(mod(float(t.x - from.x), float(size.x)));
@@ -147,7 +188,7 @@ vec4 fetched(ivec2 t, uint stages)
     if ((stages & TILE) != 0u)
         t = from + ((t - from) & (size - 1));
 
-    return texelFetch(source, clamp(t, from, from + size - 1), 0);
+    return texelFetch(source, clamp(t, from, from + size - 1), int(level));
 }
 
 // Texel c is drawn: not keyed.
@@ -192,7 +233,7 @@ vec4 between(vec4 a, vec4 b, float f)
 // The four texels round the centre mixed; *drawn false where under half covered.
 uvec3 smoothed(uint stages, out bool drawn)
 {
-    vec2 p = v_texel - 0.5;
+    vec2 p = at - 0.5;
     vec2 f = fract(p);
     ivec2 t = ivec2(floor(p));
     bool k[4];
@@ -223,7 +264,7 @@ uvec3 blended(uvec3 c, uint stages)
 // is, held as the target holds it, an index into an 8-bit one, itself.
 void simple(uint stages)
 {
-    vec4 t = fetched(ivec2(floor(v_texel)), stages);
+    vec4 t = fetched(ivec2(floor(at)), stages);
     bool solid = (stages & SOLID) != 0u;
 
     if (!kept(t, stages))
@@ -240,10 +281,19 @@ void simple(uint stages)
 void main()
 {
     uint stages = v_more.z;
+    at = v_texel;
 #ifdef SIMPLE
     simple(stages);
 }
 #else
+    // the steps taken before any pixel is discarded: a derivative needs its neighbours
+    vec2 dx = dFdx(v_texel), dy = dFdy(v_texel);
+
+    if ((stages & MIPMAP) != 0u) {
+        level = level_of(dx, dy, levels_of(v_rect.zw));
+        at = level == 0u ? v_texel : scaled(v_texel);
+    }
+
     bool eight = (stages & EIGHT) != 0u;
 
     if ((stages & DISC) != 0u && !covered(stages))
@@ -256,9 +306,9 @@ void main()
         uvec3 m = smoothed(stages, drawn);
         c = solid ? c : eight ? uvec3(nearest(m)) : m;
     } else if (!solid)
-        c = texel(ivec2(floor(v_texel)), stages, eight, drawn);
+        c = texel(ivec2(floor(at)), stages, eight, drawn);
     else if ((stages & KEYED) != 0u)
-        drawn = kept(fetched(ivec2(floor(v_texel)), stages), stages);
+        drawn = kept(fetched(ivec2(floor(at)), stages), stages);
 
     if (!drawn)
         discard;

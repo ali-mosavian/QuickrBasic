@@ -30,8 +30,8 @@ typedef struct __attribute__((packed)) {
     uint16_t attributes;
     uint8_t windows[14];
     uint16_t pitch, cols, rows;
-} VbeMode;
-static_assert(offsetof(VbeMode, cols) == 0x12);
+} VbeTextInfo;
+static_assert(offsetof(VbeTextInfo, cols) == 0x12);
 
 /* VBE 1.2's text modes, 108h on: their sizes. */
 static const PscrSize vbe12[] = {{80, 60}, {132, 25}, {132, 43}, {132, 50}, {132, 60}};
@@ -81,7 +81,7 @@ static bool vbe_size(const uint16_t mode, const PdosBlock *const b, PscrSize *co
     if (!pdos_vbe_mode(b, mode))
         return false;
 
-    const VbeMode m = *(const VbeMode *)b->at;
+    const VbeTextInfo m = *(const VbeTextInfo *)b->at;
 
     if (!(m.attributes & VBE_SUPPORTED) || m.attributes & VBE_GRAPHICS)
         return false;

@@ -53,7 +53,7 @@ def layers() -> None:
         s.box(x, 780, 148, 32, "base", r=6, dash=True)
         s.text(x + 74, 801, name, size=12, anchor="middle", mono=True)
     s.box(R - 236, 780, 220, 32, "base", r=6, dash=True)
-    s.text(R - 126, 801, "src/platform/dos: crt", size=12, anchor="middle", mono=True)
+    s.text(R - 126, 801, "DOS: the runtime's mem.asm", size=12, anchor="middle", mono=True)
 
     cx = W / 2
     for y0, y1 in [(160, 186), (270, 296), (380, 406), (582, 608)]:

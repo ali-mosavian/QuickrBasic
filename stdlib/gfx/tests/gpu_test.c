@@ -20,9 +20,18 @@ static float uniforms[4]; /* the last UNIFORMS' */
 static uint8_t pixels[MOST_PIXELS * 4];
 static QxShader language; /* the one the host takes */
 static bool down;         /* its clip space's y runs down */
+static uint8_t offered;   /* the languages the last screen asked for */
+static uint8_t flagged;   /* its flags */
+static uint8_t sent[64];  /* the last UPLOAD's first bytes */
+/* the words the last LOOKUP chose, each lookup's, COLOURS' last; the LOOKUPs giving words */
+static uint32_t lookup[QX_LIST_INDICES], lookups[QX_LIST_LOOKUPS][QX_LIST_INDICES];
+static uint32_t colours[QX_LIST_INDICES], given;
+static uint32_t most_vertices; /* the most bytes of vertices a play wrote */
 
 static bool QX_CALL fake_open(QxScreen *const s)
 {
+    offered = s->shaders;
+    flagged = s->flags;
     s->gpu = true;
     s->shader = language;
     s->y_down = down;
@@ -33,18 +42,13 @@ static bool QX_CALL fake_open(QxScreen *const s)
 
 static void QX_CALL fake_close(void) {}
 
-static const void *pointer(const uint32_t *const a)
-{
-    return (const void *)(uintptr_t)((uint64_t)a[1] << 32 | a[0]);
-}
-
 /* A WRITE's bytes, of size an element, into out: MOST_VERTICES of them at most. */
 static void copy(void *const out, const uint32_t *const a, const size_t size)
 {
     const uint32_t n = a[1] / (uint32_t)size;
 
     if (n)
-        memcpy(out, pointer(a + 2), (n < MOST_VERTICES ? n : MOST_VERTICES) * size);
+        memcpy(out, qx_list_pointer(a + 2), (n < MOST_VERTICES ? n : MOST_VERTICES) * size);
 }
 
 /* The vertices and discs its WRITEs give, and its uniforms. */
@@ -53,13 +57,29 @@ static void QX_CALL fake_play(const uint32_t *const list, const uint32_t n)
     nwords = n < MOST_WORDS ? n : MOST_WORDS;
     memcpy(words, list, nwords * sizeof *words);
 
-    for (uint32_t at = 0; at < n && list[at] >> QX_LIST_SIZE; at += list[at] >> QX_LIST_SIZE)
-        if ((list[at] & 0xFF) == QX_LIST_WRITE && list[at + 1] == LIST_VERTICES)
-            copy(vertices, list + at + 1, sizeof *vertices);
-        else if ((list[at] & 0xFF) == QX_LIST_WRITE && list[at + 1] == LIST_DISCS)
-            copy(discs, list + at + 1, sizeof *discs);
-        else if ((list[at] & 0xFF) == QX_LIST_UNIFORMS && list[at + 1] == sizeof uniforms)
-            memcpy(uniforms, pointer(list + at + 2), sizeof uniforms);
+    QxListEntry e;
+
+    for (uint32_t at = 0; qx_list_next(list, n, &at, &e);)
+        if (e.op == QX_LIST_WRITE && e.arg[0] == LIST_VERTICES) {
+            copy(vertices, e.arg, sizeof *vertices);
+            most_vertices = e.arg[1] > most_vertices ? e.arg[1] : most_vertices;
+        } else if (e.op == QX_LIST_WRITE && e.arg[0] == LIST_DISCS)
+            copy(discs, e.arg, sizeof *discs);
+        else if (e.op == QX_LIST_UNIFORMS && e.arg[0] == sizeof uniforms)
+            memcpy(uniforms, qx_list_pointer(e.arg + 1), sizeof uniforms);
+        else if (e.op == QX_LIST_UPLOAD) {
+            const uint32_t bytes = e.arg[4] * e.arg[5];
+            memcpy(sent, qx_list_pointer(e.arg + 6), bytes < sizeof sent ? bytes : sizeof sent);
+        } else if (e.op == QX_LIST_LOOKUP && e.arg[0] < QX_LIST_LOOKUPS) {
+            const uint32_t *const w = qx_list_pointer(e.arg + 1);
+
+            if (w)
+                memcpy(lookups[e.arg[0]], w, sizeof lookup);
+
+            given += !!w;
+            memcpy(lookup, lookups[e.arg[0]], sizeof lookup);
+        } else if (e.op == QX_LIST_COLOURS)
+            memcpy(colours, qx_list_pointer(e.arg), sizeof colours);
 
     plays++;
 }
@@ -79,6 +99,26 @@ static void QX_CALL fake_read(
 
 #define GPU_CALL(name, ...) CALL_ON(&fake, name __VA_OPT__(, ) __VA_ARGS__)
 
+/* A fake host taking shader, y down or not, the state fresh and no screen open. */
+static void host_in(Session *const S, const QxShader shader, const bool y_down)
+{
+    language = shader;
+    down = y_down;
+    fake = S->natv.host;
+    fake.minor = QX_MINOR;
+    fake.gfx_open = fake_open;
+    fake.gfx_close = fake_close;
+    fake.gpu_play = fake_play;
+    fake.gpu_read = fake_read;
+    qx_init_gfx(&fake)->stop();
+    nwords = plays = most_vertices = given = 0;
+
+    for (uint32_t k = 0; k < QX_LIST_LOOKUPS; k++)
+        for (uint32_t i = 0; i < QX_LIST_INDICES; i++)
+            lookups[k][i] = i;
+    memset(pixels, 0, sizeof pixels);
+}
+
 /* A w by h screen of depth on a fake host taking shader, y down or not, the state fresh. */
 static void screen_in(
     Session *const S,
@@ -89,17 +129,7 @@ static void screen_in(
     const bool y_down
 )
 {
-    language = shader;
-    down = y_down;
-    fake = S->natv.host;
-    fake.minor = 4;
-    fake.gfx_open = fake_open;
-    fake.gfx_close = fake_close;
-    fake.gpu_play = fake_play;
-    fake.gpu_read = fake_read;
-    qx_init_gfx(&fake)->stop();
-    nwords = plays = 0;
-    memset(pixels, 0, sizeof pixels);
+    host_in(S, shader, y_down);
     CHECK(!GPU_CALL("display.open", I(w), I(h), I(depth), I(0)).error);
     CHECK(GPU_CALL("display.features").result.i == (GFX_DISPLAY_HAS_GPU | GFX_DISPLAY_HAS_SMOOTH));
 }
@@ -116,20 +146,17 @@ static void screen(Session *const S, const int32_t w, const int32_t h, const int
 #define FIRST HEAD "TT"
 
 /* The last list's ops, a letter each: End, Buffer, Write, Texture, Free, Upload, pipeLine, Pass,
-   Clip, uNiforms, Draw, Show. */
+   Clip, uNiforms, Draw, Show, looKup, coloRs. */
 static bool ops(const char *const want)
 {
-    static const char letters[] = "EBWTFULPCNDS";
+    static const char letters[] = "EBWTFULPCNDSKR";
     char got[64];
     uint32_t n = 0;
 
-    for (uint32_t at = 0; at < nwords && n < sizeof got; at += words[at] >> QX_LIST_SIZE) {
-        const uint32_t op = words[at] & 0xFF;
-        got[n++] = op < sizeof letters - 1 ? letters[op] : '?';
+    QxListEntry e;
 
-        if (!(words[at] >> QX_LIST_SIZE))
-            break;
-    }
+    for (uint32_t at = 0; n < sizeof got && qx_list_next(words, nwords, &at, &e);)
+        got[n++] = e.op < sizeof letters - 1 ? letters[e.op] : '?';
 
     const bool same = n == strlen(want) && !memcmp(got, want, n);
 
@@ -144,9 +171,11 @@ static uint32_t arg(const QxListOp op, const uint32_t k, const uint32_t i)
 {
     uint32_t seen = 0;
 
-    for (uint32_t at = 0; at < nwords && words[at] >> QX_LIST_SIZE; at += words[at] >> QX_LIST_SIZE)
-        if ((words[at] & 0xFF) == op && seen++ == k)
-            return words[at + i];
+    QxListEntry e;
+
+    for (uint32_t at = 0; qx_list_next(words, nwords, &at, &e);)
+        if (e.op == op && seen++ == k)
+            return e.arg[i - 1];
 
     return 0xDEAD;
 }
@@ -406,6 +435,30 @@ TEST(gfx_gpu_draws_a_circle_as_one_box)
     CHECK(covered(0, arc));
 }
 
+/* MOTHLITE's set-up drew thousands of shapes before its first flip, all kept for it: on a Voodoo 1,
+   2.7 MB of list and as much again in the player's copy, then out of memory. A list is played
+   once it holds LIST_MOST bytes. */
+TEST(gfx_gpu_plays_a_list_grown_long_before_the_flip)
+{
+    enum { RECTS = 3 * LIST_MOST / (4 * sizeof(GpuVertex)) };
+
+    screen(S, 8, 8, 32);
+
+    for (uint32_t i = 0; i < RECTS; i++)
+        GPU_CALL(
+            "draw.rect",
+            I(SURF_SCREEN),
+            F(1),
+            F(1),
+            F(2),
+            F(2),
+            I(0xFF0000),
+            I(GFX_DRAW_FILL)
+        );
+
+    CHECK(plays >= 2 && most_vertices <= LIST_MOST + 4 * sizeof(GpuVertex));
+}
+
 /* A clear and a rect are one batch from the white texel, its colour in the vertices; a pass's
    uniforms its size and clip space's way down, Metal's up. */
 TEST(gfx_gpu_draws_shapes_in_one_batch)
@@ -468,8 +521,8 @@ TEST(gfx_gpu_speaks_the_hosts_language)
     const uint32_t fragment[] = {arg(QX_LIST_PIPELINE, 0, 9), arg(QX_LIST_PIPELINE, 0, 10)};
 
     CHECK(ops(FIRST "TUPNCULDSE"));
-    CHECK(!memcmp(pointer(vertex), "#version 300 es", 15));
-    CHECK(!memcmp(pointer(fragment), "#version 300 es", 15));
+    CHECK(!memcmp(qx_list_pointer(vertex), "#version 300 es", 15));
+    CHECK(!memcmp(qx_list_pointer(fragment), "#version 300 es", 15));
 
     CHECK(uniforms[2] == 1);
 }
@@ -807,6 +860,21 @@ TEST(gfx_gpu_reads_back)
     CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(1), I(0)).result.i == 201);
 }
 
+/* A draw after a read is read back too. The target's texture kept from the draw before the read
+   left it unmarked as drawn into: the second read gave the first's pixels, unplayed. */
+TEST(gfx_gpu_reads_back_a_draw_after_a_read)
+{
+    screen(S, 4, 1, 32);
+    GPU_CALL("draw.pset", I(SURF_SCREEN), F(0), F(0), I(0x123456));
+    memcpy(pixels, (const uint8_t[]){0x12, 0x34, 0x56, 0xFF}, 4);
+    CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(0), I(0)).result.i == 0x123456);
+
+    GPU_CALL("draw.pset", I(SURF_SCREEN), F(0), F(0), I(0x654321));
+    memcpy(pixels, (const uint8_t[]){0x65, 0x43, 0x21, 0xFF}, 4);
+    CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(0), I(0)).result.i == 0x654321);
+    CHECK(plays == 2);
+}
+
 /* Root h's depth texture's id. */
 static uint32_t depth_of(const uint32_t h) { return h | (uint32_t)GPU_DEPTH << HDL_KIND_SHIFT; }
 
@@ -819,6 +887,38 @@ static void deep_quad(Session *const S, const int32_t flags)
     QxArray a = gfx_array(p, 4, sizeof *p);
     GPU_CALL("draw.poly", I(SURF_SCREEN), ARRAY(&a), I(0), I(4), I(s), I(0), I(flags));
     GPU_CALL("display.flip");
+}
+
+/* Each draw is moved by its target's place in its root: the screen's, a view's, the screen's
+   again. The move kept from the last draw's target would put the view's pixel at the screen's. */
+TEST(gfx_gpu_moves_each_draw_by_its_targets_place)
+{
+    screen(S, 8, 8, 32);
+
+    const int32_t v = GPU_CALL("surface.new_view", I(SURF_SCREEN), I(2), I(3), I(3), I(3)).result.i;
+
+    GPU_CALL("draw.pset", I(SURF_SCREEN), F(0), F(0), I(0x123456));
+    GPU_CALL("draw.pset", I(v), F(0), F(0), I(0x123456));
+    GPU_CALL("draw.pset", I(SURF_SCREEN), F(0), F(0), I(0x123456));
+    GPU_CALL("display.flip");
+    CHECK(placed(&vertices[0], -0.5f, -0.5f) && placed(&vertices[4], 1.5f, 2.5f));
+    CHECK(placed(&vertices[8], -0.5f, -0.5f));
+}
+
+/* A quad is its two triangles from one fan of its four corners. It was two polys of three, each
+   sent as four vertices and an empty triangle: twice the vertices through each layer. */
+TEST(gfx_gpu_draws_a_quad_as_one_fan)
+{
+    screen(S, 8, 8, 32);
+
+    const int32_t s = GPU_CALL("surface.new", I(2), I(2)).result.i;
+    gfx_draw_vec2 c[4] = {{0, 0}, {6, 0}, {7, 5}, {1, 7}};
+
+    QxArray a = gfx_array(c, 4, sizeof *c);
+    GPU_CALL("draw.quad", I(SURF_SCREEN), ARRAY(&a), I(0), I(s), I(0));
+    GPU_CALL("display.flip");
+    CHECK(ops(FIRST "TUPNCUULDSE") && arg(QX_LIST_DRAW, 0, 5) == 6);
+    CHECK(vertices[3].x - vertices[0].x == 1 && vertices[3].y - vertices[0].y == 7);
 }
 
 /* With depth, the target's depth texture is made and its pass draws into it, through a pipeline
@@ -857,4 +957,433 @@ TEST(gfx_gpu_clears_depth)
     CHECK(arg(QX_LIST_PIPELINE, 0, 2) == (QX_BLEND_KEEP | QX_DEPTH_WRITE << 8));
     CHECK(arg(QX_LIST_DRAW, 0, 5) == 6 && vertices[0].z == 0);
     CHECK(placed(&vertices[0], -0.5f, -0.5f) && placed(&vertices[2], 7.5f, 7.5f));
+}
+
+/* A screen on a host with a fixed-function pipeline. */
+static void fixed_screen(Session *const S, const int32_t w, const int32_t h, const int32_t depth)
+{
+    screen_in(S, w, h, depth, QX_SHADER_FIXED, false);
+}
+
+/* A fixed host's pixels' centres are at halves, as GL's and a card's: pixels 1 to 2 a box from 1
+   to 3. At whole numbers, the card's driver moved each corner half a pixel, two adds a corner. */
+TEST(gfx_gpu_places_a_fixed_hosts_pixels_centres_at_halves)
+{
+    fixed_screen(S, 8, 8, 16);
+    GPU_CALL("draw.rect", I(SURF_SCREEN), F(1), F(1), F(2), F(2), I(0xFF0000), I(GFX_DRAW_FILL));
+    GPU_CALL("display.flip");
+    CHECK(placed(&vertices[0], 1, 1) && placed(&vertices[2], 3, 3));
+}
+
+/* DISCARD reaches the host, which then need not keep the screen past a flip: a Voodoo 1 spent two
+   thirds of MEADOW's frame copying back the frame it had just shown. */
+TEST(gfx_gpu_tells_the_host_a_screen_is_discarded)
+{
+    host_in(S, QX_SHADER_FIXED, true);
+    CHECK(!GPU_CALL("display.open", I(8), I(8), I(16), I(QX_SCREEN_DISCARD)).error);
+    CHECK(flagged == QX_SCREEN_DISCARD);
+    CHECK(GPU_CALL("display.open", I(8), I(8), I(16), I(QX_SCREEN_DISCARD << 1)).error == 5);
+}
+
+/* A fixed host is offered at every depth; before minor 7, which draws indices, not at 8 bits. */
+TEST(gfx_gpu_offers_a_fixed_host_8_bits_from_minor_7)
+{
+    for (int32_t depth = 8; depth <= 32; depth = depth == 8 ? 15 : depth == 16 ? 32 : depth + 1) {
+        fixed_screen(S, 8, 8, depth);
+        CHECK(offered & 1 << QX_SHADER_FIXED);
+    }
+
+    host_in(S, QX_SHADER_MSL, false);
+    fake.minor = 6;
+    CHECK(!GPU_CALL("display.open", I(8), I(8), I(8), I(0)).error);
+    CHECK(!(offered & 1 << QX_SHADER_FIXED));
+}
+
+/* On a fixed host a keyed sprite's pipeline is state, not code: the texel times the colour, its
+   alpha tested, its attributes known by location. Its root has a texture of its own, and there
+   is no palette's: the list once made the palette's texture and drew from a page. */
+TEST(gfx_gpu_draws_a_fixed_hosts_pipeline_and_own_textures)
+{
+    enum { SOURCE = QX_FIXED_SOURCE + 1, FLAGS = QX_FIXED_FLAGS + 1, AT = QX_PIPELINE_ATTRIBUTES };
+
+    fixed_screen(S, 8, 8, 16);
+    const int32_t a = GPU_CALL("surface.new", I(2), I(2)).result.i;
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "TTUPNCTLDSE"));
+    CHECK(arg(QX_LIST_PIPELINE, 0, SOURCE) == QX_FIXED_TEXEL);
+    CHECK(arg(QX_LIST_PIPELINE, 0, FLAGS) == QX_FIXED_KEY);
+    CHECK(arg(QX_LIST_PIPELINE, 0, AT + 1) == QX_FIXED_AT_POSITION);
+    CHECK(arg(QX_LIST_PIPELINE, 0, AT + 7) == QX_FIXED_AT_COLOUR);
+    CHECK(arg(QX_LIST_PIPELINE, 0, AT + 8) == QX_ATTRIBUTE_UBYTE4);
+    CHECK(arg(QX_LIST_PIPELINE, 0, AT + 10) == QX_FIXED_AT_RECT);
+    CHECK(arg(QX_LIST_TEXTURE, 2, 1) == (uint32_t)a && arg(QX_LIST_DRAW, 0, 7) == (uint32_t)a);
+    CHECK(vertices[0].u == 0 && vertices[2].u == 2 && vertices[0].rx == 0);
+
+    GPU_CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_FILL));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(GFX_DRAW_SMOOTH));
+    GPU_CALL("display.flip");
+    CHECK(arg(QX_LIST_PIPELINE, 0, SOURCE) == QX_FIXED_COLOUR);
+    CHECK(arg(QX_LIST_PIPELINE, 0, FLAGS) == 0);
+    CHECK(arg(QX_LIST_PIPELINE, 1, FLAGS) == (QX_FIXED_KEY | QX_FIXED_LINEAR));
+}
+
+/* On a fixed host text is its glyphs' texels in the colour (MASK), as a shader keys SOLID: once
+   COLOUR, it drew each glyph's whole cell, a bar. */
+TEST(gfx_gpu_draws_a_fixed_hosts_text_through_its_glyphs)
+{
+    enum { SOURCE = QX_FIXED_SOURCE + 1, FLAGS = QX_FIXED_FLAGS + 1 };
+
+    fixed_screen(S, 8, 8, 16);
+    GPU_CALL("draw.text", I(SURF_SCREEN), F(0), F(0), STR("A"), I(0xFF8000));
+    GPU_CALL("display.flip");
+    CHECK(arg(QX_LIST_PIPELINE, 0, SOURCE) == QX_FIXED_MASK);
+    CHECK(arg(QX_LIST_PIPELINE, 0, FLAGS) == QX_FIXED_KEY);
+    CHECK(arg(QX_LIST_DRAW, 0, 7) != 0);
+}
+
+/* On a fixed host a texel's colour is lit in its vertices as the shader lights it, the tint by the
+   light over 63, alpha whole; a shape's is as it was. ADD's share is the draw's alpha, as BLEND's:
+   the shader once took it. */
+TEST(gfx_gpu_lights_a_fixed_hosts_vertices)
+{
+    fixed_screen(S, 8, 8, 32);
+    const int32_t a = GPU_CALL("surface.new", I(2), I(2)).result.i;
+    GPU_CALL("draw.set_light", I(31));
+    GPU_CALL("draw.set_tint", I(0x8040FF));
+    GPU_CALL("draw.set_alpha", I(32));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(GFX_DRAW_ADD));
+    GPU_CALL("display.flip");
+    CHECK(vertices[0].r == 0x80 * 31 / 63 && vertices[0].g == 0x40 * 31 / 63);
+    CHECK(vertices[0].b == 0xFF * 31 / 63 && vertices[0].light == 0xFF);
+    CHECK(arg(QX_LIST_PIPELINE, 0, 2) == QX_BLEND_ADD && arg(QX_LIST_DRAW, 0, 6) == 130);
+}
+
+/* On a fixed host an 8-bit root is INDEX, its texels sent once; into a 16-bit target it draws
+   through LOOKUP, its row's colours, sent when the row changes or another is drawn through, its
+   vertex white. Once its texels were its row's colours, sent again on each change. */
+TEST(gfx_gpu_draws_a_fixed_hosts_8_bit_roots_through_lookup)
+{
+    uint8_t indices[2] = {0, 5};
+
+    int32_t row[256] = {[5] = 0x102030};
+
+    QxArray in = gfx_array(indices, 2, 1), rows = gfx_array(row, 256, 4);
+
+    host_in(S, QX_SHADER_FIXED, false);
+    const int32_t a = GPU_CALL("surface.new", I(2), I(1)).result.i;
+    CHECK(!GPU_CALL("surface.write", I(a), I(0), I(0), I(2), I(1), ARRAY(&in)).error);
+    CHECK(!GPU_CALL("display.open", I(8), I(8), I(16), I(0)).error);
+    GPU_CALL("display.set_palette", I(0), ARRAY(&rows));
+    GPU_CALL("draw.set_light", I(31));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+    GPU_CALL("display.flip");
+    CHECK(arg(QX_LIST_TEXTURE, 2, 4) == QX_TEXTURE_INDEX && !memcmp(sent, indices, 2));
+    CHECK(lookup[5] == pal_shade(0x102030, 31, PAL_WHITE) && vertices[0].r == 0xFF);
+    CHECK(vertices[0].g == 0xFF && vertices[0].b == 0xFF);
+
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "PNCDSE"));
+
+    row[5] = 0x405060;
+    GPU_CALL("draw.reset");
+    GPU_CALL("display.set_palette", I(0), ARRAY(&rows));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "PNCKDSE") && lookup[5] == 0x405060);
+
+    row[5] = 0x708090;
+    GPU_CALL("display.set_palette", I(1), ARRAY(&rows));
+    GPU_CALL("draw.set_palette_row", I(1));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "PNCKDSE") && lookup[5] == 0x708090);
+}
+
+/* On a fixed host each light an 8-bit root is drawn at has its lookup, its words given once:
+   they were given at each change of light, MEADOW's 48 blossoms 48 lots of 256 words a frame. */
+TEST(gfx_gpu_gives_a_fixed_hosts_lookup_once_a_light)
+{
+    uint8_t indices[2] = {0, 5};
+
+    int32_t row[256] = {[5] = 0x102030};
+
+    QxArray in = gfx_array(indices, 2, 1), rows = gfx_array(row, 256, 4);
+
+    fixed_screen(S, 8, 8, 8);
+    const int32_t a = GPU_CALL("surface.new", I(2), I(1)).result.i;
+    CHECK(!GPU_CALL("surface.write", I(a), I(0), I(0), I(2), I(1), ARRAY(&in)).error);
+    GPU_CALL("display.set_palette", I(0), ARRAY(&rows));
+
+    uint32_t first[QX_LIST_INDICES];
+
+    for (uint32_t frame = 0; frame < 2; frame++) {
+        for (int32_t k = 0; k < 3; k++) {
+            GPU_CALL("draw.set_light", I(20 + 20 * (k & 1)));
+            GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+        }
+
+        GPU_CALL("display.flip");
+
+        if (!frame)
+            memcpy(first, lookup, sizeof first);
+    }
+
+    CHECK(given == 2 && !memcmp(first, lookup, sizeof first));
+}
+
+/* On a fixed host from minor 7 an 8-bit canvas is INDEX: row 0 sent as COLOURS when it changed,
+   a shape's colour its index in r, g and b, BLEND the host's at the draw's alpha, SMOOTH nearest.
+   Once it was RGBA, a shape its colour through row 0. */
+TEST(gfx_gpu_draws_a_fixed_hosts_8_bit_canvas_in_indices)
+{
+    enum { FLAGS = QX_FIXED_FLAGS + 1 };
+
+    int32_t row[256] = {[7] = 0x102030};
+
+    QxArray rows = gfx_array(row, 256, 4);
+
+    fixed_screen(S, 8, 8, 8);
+    const int32_t a = GPU_CALL("surface.new", I(2), I(2)).result.i;
+    GPU_CALL("display.set_palette", I(0), ARRAY(&rows));
+    GPU_CALL("draw.set_alpha", I(32));
+    GPU_CALL(
+        "draw.rect",
+        I(SURF_SCREEN),
+        F(0),
+        F(0),
+        F(1),
+        F(1),
+        I(7),
+        I(GFX_DRAW_FILL | GFX_DRAW_BLEND)
+    );
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "TTUPNCRLDSE") && arg(QX_LIST_TEXTURE, 0, 4) == QX_TEXTURE_INDEX);
+    CHECK(colours[7] == 0x102030 && vertices[0].r == 7 && vertices[0].g == 7 && vertices[0].b == 7);
+    CHECK(arg(QX_LIST_PIPELINE, 0, 2) == QX_BLEND_MIX && arg(QX_LIST_DRAW, 0, 6) == 130);
+
+    GPU_CALL("draw.reset");
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(GFX_DRAW_SMOOTH));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "PNCTKLDSE") && arg(QX_LIST_PIPELINE, 0, FLAGS) == QX_FIXED_KEY);
+}
+
+/* On a fixed host an 8-bit surface drawn into is INDEX, an index drawn as itself, read back as
+   the index in each byte. Once it held colours, read back as the nearest index. */
+TEST(gfx_gpu_reads_a_fixed_hosts_8_bit_surface_as_indices)
+{
+    host_in(S, QX_SHADER_FIXED, false);
+    const int32_t a = GPU_CALL("surface.new", I(2), I(1)).result.i;
+    CHECK(!GPU_CALL("display.open", I(8), I(8), I(32), I(0)).error);
+    GPU_CALL("draw.pset", I(a), F(0), F(0), I(4));
+    GPU_CALL("display.flip");
+    CHECK(arg(QX_LIST_TEXTURE, 1, 4) == QX_TEXTURE_INDEX && vertices[0].r == 4);
+
+    GPU_CALL("draw.pset", I(a), F(0), F(0), I(4));
+    memcpy(pixels, (const uint8_t[]){4, 4, 4, 4, 9, 9, 9, 9}, 8);
+
+    CHECK(GPU_CALL("surface.point", I(a), I(0), I(0)).result.i == 4);
+    CHECK(GPU_CALL("surface.point", I(a), I(1), I(0)).result.i == 9);
+}
+
+/* On a fixed host a direct root drawn into an 8-bit target is INDEX, its texels the indices
+   nearest them, a keyed one 0, sent again when row 0 changes: the host draws no colour into
+   indices. */
+TEST(gfx_gpu_matches_a_fixed_hosts_direct_root_into_indices)
+{
+    uint8_t texels[8] = {0, 0, 0xFF, 0, 0x30, 0x20, 0x10, 0xFF}; /* &H00FF0000, &HFF102030 */
+
+    int32_t row[256] = {[9] = 0x102030};
+
+    QxArray in = gfx_array(texels, 8, 1), rows = gfx_array(row, 256, 4);
+
+    fixed_screen(S, 8, 8, 32);
+    const int32_t a = GPU_CALL("surface.new", I(2), I(1)).result.i;
+    CHECK(!GPU_CALL("surface.write", I(a), I(0), I(0), I(2), I(1), ARRAY(&in)).error);
+    CHECK(!GPU_CALL("display.open", I(8), I(8), I(8), I(0)).error);
+    GPU_CALL("display.set_palette", I(0), ARRAY(&rows));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+    GPU_CALL("display.flip");
+    CHECK(arg(QX_LIST_TEXTURE, 2, 4) == QX_TEXTURE_INDEX && sent[0] == 0 && sent[1] == 9);
+
+    row[3] = 0x102030;
+    row[9] = 0;
+    GPU_CALL("display.set_palette", I(0), ARRAY(&rows));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+    GPU_CALL("display.flip");
+    CHECK(sent[1] == 3);
+}
+
+/* On a fixed host a circle is its rows, a box each, covering software's pixels: no disc's
+   shader keeps them. */
+TEST(gfx_gpu_draws_a_fixed_hosts_circle_as_its_rows)
+{
+    static const char *const disc[8] = {
+        "........",
+        "..###...",
+        ".#####..",
+        ".#####..",
+        ".#####..",
+        "..###...",
+        "........",
+        "........",
+    };
+
+    fixed_screen(S, 8, 8, 16);
+    GPU_CALL("draw.circle", I(SURF_SCREEN), F(3), F(3), F(2), I(0xFFFFFF), I(GFX_DRAW_FILL));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "TTUPNCLDSE") && arg(QX_LIST_DRAW, 0, 2) == LIST_VERTICES);
+    CHECK(arg(QX_LIST_DRAW, 0, 5) == 5 * 6 && covered(0, disc));
+}
+
+/* The UPLOADs of the last list into texture id's level. */
+static uint32_t uploads_to(const uint32_t id, const uint32_t level)
+{
+    uint32_t n = 0;
+
+    QxListEntry e;
+
+    for (uint32_t at = 0; qx_list_next(words, nwords, &at, &e);)
+        n += e.op == QX_LIST_UPLOAD && e.arg[0] == id && (e.args > 8 ? e.arg[8] : 0) == level;
+
+    return n;
+}
+
+/* The last list's TEXTURE making id: its levels, 1 when not given; 0, none. */
+static uint32_t levels_made(const uint32_t id)
+{
+    QxListEntry e;
+
+    for (uint32_t at = 0; qx_list_next(words, nwords, &at, &e);)
+        if (e.op == QX_LIST_TEXTURE && e.arg[0] == id)
+            return e.args > 4 ? e.arg[4] : 1;
+
+    return 0;
+}
+
+/* The k-th UPLOAD into id's level: its word i. */
+static uint32_t upload_word(const uint32_t id, const uint32_t level, const uint32_t i)
+{
+    QxListEntry e;
+
+    for (uint32_t at = 0; qx_list_next(words, nwords, &at, &e);)
+        if (e.op == QX_LIST_UPLOAD && e.arg[0] == id && (e.args > 8 ? e.arg[8] : 0) == level)
+            return e.arg[i - 1];
+
+    return 0xDEAD;
+}
+
+/* A quad over 4 by 4 pixels drawn from s's w by h texels, with flags. */
+static void small_quad(
+    Session *const S,
+    const int32_t s,
+    const float w,
+    const float h,
+    const int32_t flags
+)
+{
+    gfx_draw_vertex p[4] = {{0, 0, 1, 0, 0}, {4, 0, 1, w, 0}, {4, 4, 1, w, h}, {0, 4, 1, 0, h}};
+
+    QxArray a = gfx_array(p, 4, sizeof *p);
+    GPU_CALL("draw.poly", I(SURF_SCREEN), ARRAY(&a), I(0), I(4), I(s), I(0), I(flags));
+}
+
+/* A MIPMAP texture is its own, never a page's, made with its levels, 16 by 16 three; each after
+   the first sent into its level, and the shader told. Drawn again nothing is sent; written, its
+   rows and its levels again. Without MIPMAP the same root went to a page, levels unread. */
+TEST(gfx_gpu_sends_a_textures_levels)
+{
+    screen(S, 8, 8, 32);
+    const int32_t s = GPU_CALL("surface.new", I(16), I(16)).result.i;
+    const uint32_t id = (uint32_t)s;
+    uint32_t row[16] = {0xFF0000};
+
+    QxArray a = gfx_array(row, sizeof row, 1);
+    GPU_CALL("surface.write", I(s), I(0), I(0), I(16), I(1), ARRAY(&a));
+    small_quad(S, s, 16, 16, GFX_DRAW_MIPMAP);
+    GPU_CALL("display.flip");
+    CHECK(levels_made(id) == 3 && arg(QX_LIST_DRAW, 0, 7) == id);
+    CHECK(uploads_to(id, 0) == 1 && uploads_to(id, 1) == 1 && uploads_to(id, 2) == 1);
+    CHECK(upload_word(id, 1, 4) == 8 && upload_word(id, 1, 5) == 8);
+    CHECK(upload_word(id, 2, 4) == 4 && upload_word(id, 2, 5) == 4);
+    CHECK(vertices[0].stages & GPU_STAGE_MIPMAP);
+
+    small_quad(S, s, 16, 16, GFX_DRAW_MIPMAP);
+    GPU_CALL("display.flip");
+    CHECK(!uploads_to(id, 0) && !uploads_to(id, 1) && !uploads_to(id, 2));
+
+    GPU_CALL("surface.write", I(s), I(0), I(5), I(16), I(1), ARRAY(&a));
+    small_quad(S, s, 16, 16, GFX_DRAW_MIPMAP);
+    GPU_CALL("display.flip");
+    CHECK(uploads_to(id, 0) == 1 && upload_word(id, 0, 3) == 5);
+    CHECK(uploads_to(id, 1) == 1 && uploads_to(id, 2) == 1);
+
+    const int32_t t = GPU_CALL("surface.new", I(16), I(16)).result.i;
+    small_quad(S, t, 16, 16, 0);
+    GPU_CALL("display.flip");
+    CHECK(!levels_made((uint32_t)t) && !(vertices[0].stages & GPU_STAGE_MIPMAP));
+}
+
+/* A view's levels go at its place halved in its root's: its levels, not its root's. */
+TEST(gfx_gpu_sends_a_views_levels_at_its_place)
+{
+    screen(S, 8, 8, 32);
+    const int32_t s = GPU_CALL("surface.new", I(16), I(16)).result.i;
+    const int32_t v = GPU_CALL("surface.new_view", I(s), I(4), I(8), I(8), I(8)).result.i;
+
+    small_quad(S, v, 8, 8, GFX_DRAW_MIPMAP);
+    GPU_CALL("display.flip");
+    CHECK(levels_made((uint32_t)s) == 3);
+    CHECK(uploads_to((uint32_t)s, 1) == 1 && !uploads_to((uint32_t)s, 2));
+    CHECK(upload_word((uint32_t)s, 1, 2) == 2 && upload_word((uint32_t)s, 1, 3) == 4);
+    CHECK(upload_word((uint32_t)s, 1, 4) == 4 && upload_word((uint32_t)s, 1, 5) == 4);
+}
+
+/* A root drawn into is read back before its levels are made from it, and its texture made again
+   with them: made from the CPU's texels unread, its levels were of what it held before. */
+TEST(gfx_gpu_reads_back_a_root_before_its_levels)
+{
+    screen(S, 8, 8, 32);
+    const int32_t s = GPU_CALL("surface.new", I(8), I(8)).result.i;
+
+    GPU_CALL("draw.clear", I(s), I(0x0000FF));
+    GPU_CALL("display.flip");
+    memset(pixels, 0xFF, sizeof pixels);
+    small_quad(S, s, 8, 8, GFX_DRAW_MIPMAP);
+    GPU_CALL("display.flip");
+    CHECK(GPU_CALL("surface.point", I(s), I(3), I(3)).result.i == 0xFFFFFF);
+    CHECK(levels_made((uint32_t)s) == 2 && uploads_to((uint32_t)s, 1) == 1);
+    CHECK(upload_word((uint32_t)s, 1, 4) == 4);
+}
+
+/* A host before minor 8 is given no levels: it would put a level's texels in level 0. */
+TEST(gfx_gpu_gives_levels_from_minor_8)
+{
+    host_in(S, QX_SHADER_MSL, false);
+    fake.minor = 7;
+    CHECK(!GPU_CALL("display.open", I(8), I(8), I(32), I(0)).error);
+    const int32_t s = GPU_CALL("surface.new", I(16), I(16)).result.i;
+
+    small_quad(S, s, 16, 16, GFX_DRAW_MIPMAP);
+    GPU_CALL("display.flip");
+    CHECK(!levels_made((uint32_t)s) && !uploads_to((uint32_t)s, 1));
+    CHECK(!(vertices[0].stages & GPU_STAGE_MIPMAP));
+}
+
+/* A fixed host's MIPMAP draw is its pipeline's flag, its texture made with levels. */
+TEST(gfx_gpu_asks_a_fixed_host_for_its_level)
+{
+    enum { FLAGS = QX_FIXED_FLAGS + 1 };
+
+    fixed_screen(S, 8, 8, 16);
+    const int32_t s = GPU_CALL("surface.new", I(16), I(16)).result.i;
+
+    small_quad(S, s, 16, 16, GFX_DRAW_MIPMAP);
+    GPU_CALL("display.flip");
+    CHECK(levels_made((uint32_t)s) == 3 && uploads_to((uint32_t)s, 2) == 1);
+    CHECK(
+        arg(QX_LIST_PIPELINE, 0, FLAGS) ==
+        (QX_FIXED_KEY | QX_FIXED_WRAP_U | QX_FIXED_WRAP_V | QX_FIXED_MIPMAP)
+    );
 }

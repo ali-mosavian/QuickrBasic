@@ -159,6 +159,29 @@ int32_t vbe_pick(
     return best;
 }
 
+int32_t vbe_holding(
+    const VbeMode *const modes,
+    const uint32_t n,
+    const uint16_t w,
+    const uint16_t h,
+    const uint8_t depth
+)
+{
+    int32_t best = -1;
+
+    for (uint32_t i = 0; i < n; i++) {
+        const VbeMode *const m = &modes[i];
+
+        if (m->depth != depth || !m->linear || m->w < w || m->h < h)
+            continue;
+
+        if (best < 0 || (uint32_t)m->w * m->h < (uint32_t)modes[best].w * modes[best].h)
+            best = (int32_t)i;
+    }
+
+    return best;
+}
+
 void vbe_widen(
     uint8_t *const to,
     const uint8_t *const from,

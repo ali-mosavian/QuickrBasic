@@ -24,6 +24,11 @@
     bench.py gfx [REV...] [--depth D] [--seconds S] [--dos]  gfx's frames a second in the Mac app, drawn in
                                                  pages against played on the GPU, for each of GFX_WORK's
                                                  frames; --dos: in pages on DOS; REVs: in pages, per build
+    bench.py games --card CARD [--machine M] [--game G]...
+                                                 MEADOW at 640x480, 8 and 16 bits, then PLASMA, MOTHLITE and
+                                                 CHARLIE at 320x200x8, on the card's VM (the machine's, the
+                                                 Pentium 100's when none): frames a second in pages and by
+                                                 the card, without vsync
     bench.py demos [EXE...] [--cycles N]         stdlib/gfx's demos at 320x200x8 on DOS, frames a second: ours
                                                  shipped, then without vsync, text and perspective in turn; each
                                                  EXE a program built elsewhere, writing its rate to FPS.TXT
@@ -532,19 +537,27 @@ def nm(o: Path) -> list[tuple[int, str, str]]:
     return [(int(f[0], 16), f[1], f[2]) for f in (ln.split() for ln in out.splitlines()) if len(f) == 3]
 
 
+CODE_ALIGN = 16  # a module's code's alignment in a link
+
+
 def with_statics(listing: str, objs: list[Path]) -> str:
     """The link map, each module's static functions added: the map lists globals alone, so the
     profiler counted a static's instructions under the global before it. A static's address is its
-    module's code base, from a global the map and the object both place, plus its offset."""
+    module's code base, from a global the map and the object both place, plus its offset; a module
+    with no global function's, the module before it's end, aligned as the linker lays code."""
     lines = listing.splitlines()
     by_path = {str(o.resolve()): o for o in objs}  # the map's paths are resolved
     out: list[str] = []
+    end: int | None = None  # the last module's code's end: None, unknown
     i = 0
     while i < len(lines):
         out.append(lines[i])
         m = re.match(r"Module: (.*?)\(", lines[i])
         i += 1
-        if not m or m[1] not in by_path:
+        if not m:
+            continue
+        if m[1] not in by_path:
+            end = None
             continue
         placed: dict[str, int] = {}
         while i < len(lines) and re.match(r"[0-9a-f]{4}:", lines[i]):
@@ -555,9 +568,10 @@ def with_statics(listing: str, objs: list[Path]) -> str:
             i += 1
         syms = nm(by_path[m[1]])
         bases = {placed[n] - off for off, k, n in syms if k == "T" and n in placed}
-        if len(bases) == 1:
-            base = bases.pop()
+        base = bases.pop() if len(bases) == 1 else None if bases or end is None else -(-end // CODE_ALIGN) * CODE_ALIGN
+        if base is not None:
             out += [f"0001:{base + off:08x}  {n}" for off, k, n in syms if k == "t"]
+        end = None if base is None else base + sections(by_path[m[1]])["code"]
     return "\n".join(out) + "\n"
 
 
@@ -569,7 +583,7 @@ def apart(objs: list[Path], d: Path) -> list[Path]:
     (d / "slice").mkdir(exist_ok=True)
     out = []
     for i, o in enumerate(objs):
-        out.append(d / "slice" / f"{i}_{o.name}")
+        out.append(d / "slice" / f"{i}_{o.parent.name}_{o.name}")  # its directory's name too: gpu's backend, soft's
         subprocess.run([OBJCOPY, *renames, str(o), str(out[-1])], check=True)
     return out
 
@@ -970,8 +984,8 @@ def timed(s: str) -> str:
 
 
 def fps_program(parts: bool = False, one: bool = False) -> str:
-    """MOTHLITE.BAS with the autopilot pressing its key, each frame's TIMER and mode kept, written to FPS.TXT at the end;
-    one: a single frame, the start-up's cost."""
+    """MOTHLITE.BAS with the autopilot pressing its key, each frame's TIMER and mode kept, written to FPS.TXT at the
+    end, their rate and count printed; one: a single frame, the start-up's cost."""
     s = MOTH.read_text(encoding="latin-1").replace("\r\n", "\n")
     edits = [
         ("DECLARE SUB Main ()\n", "DECLARE SUB Main ()\nDECLARE SUB Auto (w AS World, st() AS Stone, k AS Pad)\n"),
@@ -981,7 +995,8 @@ def fps_program(parts: bool = False, one: bool = False) -> str:
         ("        Render w, stones(), sparks()\n    LOOP",
          f"        Render w, stones(), sparks()\n        IF fr < {FPS_FRAMES} THEN fr = fr + 1: ft(fr) = TIMER: fm(fr) = w.g.mode\n    LOOP"),
         ("    CloseScreen\nEND SUB\n",
-         '    CloseScreen\n    OPEN "FPS.TXT" FOR OUTPUT AS #1\n    FOR i = 1 TO fr: PRINT #1, ft(i); fm(i): NEXT\n    CLOSE #1\nEND SUB\n'),
+         '    CloseScreen\n    OPEN "FPS.TXT" FOR OUTPUT AS #1\n    FOR i = 1 TO fr: PRINT #1, ft(i); fm(i): NEXT\n'
+         '    CLOSE #1\n    r = 0: IF fr > 1 THEN r = (fr - 1) / (ft(fr) - ft(1))\n    PRINT r; fr\nEND SUB\n'),
     ]
     if one:
         edits.append(("    LOOP UNTIL w.g.quitting AND w.sky.fade <= 0\n", "    LOOP UNTIL -1\n"))
@@ -1035,6 +1050,26 @@ def each_program() -> str:
     return head + "\n" + EACH + loops + "CLOSE #1\nEND\n" + rest
 
 
+MOTH_MODES = ("title", "play", "dying", "over")
+
+
+def mode_rates(fps: str) -> dict[str, tuple[int, float, float]]:
+    """fps_program's FPS.TXT by mode: its frames, their rate and the longest one's ms."""
+    frames = [(float(t), int(m)) for t, m in (ln.split() for ln in fps.splitlines())]
+    rates = {}
+    for mode, name in enumerate(MOTH_MODES):
+        dts = [b[0] - a[0] for a, b in zip(frames, frames[1:]) if b[1] == mode and b[0] >= a[0]]
+        if dts:
+            rates[name] = (len(dts), len(dts) / sum(dts), max(dts) * 1000)
+    return rates
+
+
+def play_rate(fps: str, out: str) -> str:
+    """fps_program's frames a second in play, from its FPS.TXT: empty, none. out unread, as rate_of's is."""
+    play = mode_rates(fps).get("play")
+    return f"{play[1]:.1f}" if play else ""
+
+
 def cmd_fps(a: argparse.Namespace) -> int:
     """Frames a second in each mode (title, play, dying, over), with the longest frame, from the frames' own TIMER readings."""
     gfx = {"lib/gfx.qbx": (build(".", True).dos.parent / "lib/gfx.qbx").read_bytes()}
@@ -1061,20 +1096,18 @@ def cmd_fps(a: argparse.Namespace) -> int:
         jobs = ({"start": fps_program(one=True)} if a.profile else {}) | {"moth": fps_program(a.parts)}
         r = dosrun.run(jobs, Path(d) / "w", limit_ms=600000, file=True, files=gfx, mem=16, profile=a.profile)
         log, parts = Path(d) / "w/FPS.TXT", Path(d) / "w/PARTS.TXT"
-        rows = [ln.split() for ln in log.read_text().splitlines()] if log.exists() else []
+        fps = log.read_text() if log.exists() else ""
         if a.parts and parts.exists():
             for call, ms in zip(FPS_PARTS, parts.read_text().split()):
                 print(f"{float(ms):>8.1f} ms  {call}")
     dosrun.CONF = conf
-    if not rows:
+    if not fps.strip():
         print(f"no FPS.TXT: {r['moth'].reason} {r['moth'].out[:400]}")
         return 1
-    frames = [(float(t), int(m)) for t, m in rows]
+    frames = fps.splitlines()
     print(f"{'mode':8}{'frames':>8}{'fps':>8}{'worst ms':>10}")
-    for mode, name in enumerate(("title", "play", "dying", "over")):
-        dts = [b[0] - a_[0] for a_, b in zip(frames, frames[1:]) if b[1] == mode and b[0] >= a_[0]]
-        if dts:
-            print(f"{name:8}{len(dts):>8}{len(dts) / sum(dts):>8.1f}{max(dts) * 1000:>10.0f}")
+    for name, (n, rate, worst) in mode_rates(fps).items():
+        print(f"{name:8}{n:>8}{rate:>8.1f}{worst:>10.0f}")
     if a.profile:  # the frames' own: less the start-up's
         got, base = r["moth"], r["start"]
         sel = {f: n - base.selfs.get(f, 0) for f, n in got.selfs.items() if n > base.selfs.get(f, 0)}
@@ -1093,7 +1126,7 @@ CHARLIE_EACH = (CHARLIE_STEP, "DrawBack wd.zn, wd.art, cx, cy",
                 "DrawThings wd.lv, wd.zn, wd.art, wd.kinds, wd.se, cx, cy, 0", "DrawHero wd.gr, wd.art, wd.se, p, cx, cy",
                 "DrawParts wd.art, pt(), cx, cy", "Blit wd.art, 6, 5, IHUD, HUDW, HUDH", "Flip", "Render wd, g, p, lo(), pt()")
 CHARLIE_IMPORTS = "".join(f"FROM {'' if m.startswith('engine.') else 'barkley.'}{m} IMPORT {n}\n" for m, n in (
-    ("engine.video", "Blit, Flip, OpenScreen"),
+    ("engine.video", "Blit, CloseScreen, Flip, OpenScreen"),
     ("model.images", "IHUD"),
     ("model.hero", "Hero, Pad"),
     ("model.game", "Game, Loose, NLOOSE, NPART, Part"),
@@ -1345,8 +1378,25 @@ DEMO_EDITS = {
         ("no text", "    show_help canvas&, st, turning%, smooth%, fps\n", ""),
         ("no clouds", "    draw_clouds world&, clouds()\n", ""),
     ),
+    "TEMPLE": (
+        ("no text", "    show_help canvas&, st, moving%, fps\n", ""),
+        ("no fires", "    draw_fires canvas&, world.fires(), world.n_fires, _\n"
+         "        world.textures(), cam, alive!, q()\n", ""),
+    ),
+    # each draw gone, the BASIC working it out kept
+    "MEADOW": (
+        ("no text", "    gfx.draw.text canvas&, MARGIN, y%, t$, ink&\n", ""),
+        ("no sky", "    gfx.draw.quad dst, c(), 0, s, gfx.draw.OPAQUE\n", ""),
+        ("no hills", "            gfx.draw.quad dst, c(), 0, hills(r), 0\n", ""),
+        ("no floor", "    gfx.draw.poly dst, q(), 0, 4, s, 0, gfx.draw.PERSPECTIVE\n", ""),
+        ("no blossoms", "        gfx.draw.sprite_turned dst, x!, y!, turn!, size!, p&, 0\n", ""),
+        ("no glows", "        gfx.draw.sprite_turned dst, x!, y!, 0, glows(i).size, s, f%\n", ""),
+    ),
 }
 # demos --profile: each run's seconds; the longer one's counts less the shorter's are frames alone
+# the demos drawn in colours, not at 8 bits; the 8-bit tables take the rest
+DEMOS_IN_COLOUR = frozenset({"TEMPLE"})
+DEMOS_8 = tuple(n for n in DEMO_EDITS if n not in DEMOS_IN_COLOUR)
 DEMO_PROFILE_SECONDS = (2.0, 4.0)
 # a frame counted, and the rate since the first and the frames printed once seconds have passed
 DEMO_FLIP = """{i}gfx.display.flip
@@ -1371,22 +1421,33 @@ DEMO_FLIP_FRAMES = """{i}gfx.display.flip
 MACHINE_FRAMES = {"486": 6, "p5": 24, "p6": 60}
 
 
-def demo_program(name: str, seconds: float, vsync: bool, edits: int, frames: int = 0) -> str:
-    """Demo name at 320x200x8, timed for seconds, its seed fixed so each run draws one world. frames: that many
-    drawn, the demo's clock the frames at 30 a second, so frame n is the same whatever the build's speed."""
+def demo_modules() -> dict[str, bytes]:
+    """The modules the demos import, by name."""
+    return {n: (DEMOS / n).read_bytes() for n in ("stage.bas", "meter.bas")}
+
+
+def demo_program(name: str, seconds: float, vsync: bool, edits: int, *, frames: int = 0, depth: int = 8,
+                 sized: bool = False, size: tuple[int, int] | None = None) -> str:
+    """Demo name at 320x200 and depth bits (its DEPTH too, if it has one), timed for seconds, its seed fixed so each
+    run draws one world. frames: that many drawn, the demo's clock the frames at 30 a second, so frame n is the same
+    whatever the build's speed. sized: at its own size; size: at this one."""
+    if depth == 8 and name in DEMOS_IN_COLOUR:
+        sys.exit(f"{name} draws in colours, not at 8 bits")
     src = (DEMOS / f"{name}.BAS").read_text().replace("randomize timer\n", "randomize 1\n")
     if frames:
         src = src.replace("gfx.display.clock", "(frames& / 30#)")
-    src, w = re.subn(r"(?m)^const W = \d+$", "const W = 320", src)
-    src, h = re.subn(r"(?m)^const H = \d+$", "const H = 200", src)
-    flags = "gfx.display.VSYNC" if vsync else "0"
-    src, o = re.subn(r"gfx\.display\.open\(W, H, \d+, gfx\.display\.VSYNC\)",
-                     f"gfx.display.open(W, H, 8, {flags})", src)
+    w_h = size or (None if sized else (320, 200))
+    src, w = re.subn(r"(?m)^const W = \d+$", f"const W = {w_h[0]}", src) if w_h else (src, 1)
+    src, h = re.subn(r"(?m)^const H = \d+$", f"const H = {w_h[1]}", src) if w_h else (src, 1)
+    src = re.sub(r"(?m)^const DEPTH = \d+$", f"const DEPTH = {depth}", src)
+    src, o = re.subn(r"gfx\.display\.open\(W, H, \w+, ", f"gfx.display.open(W, H, {depth}, ", src)
+    src, v = (src, 1) if vsync else re.subn(r"gfx\.display\.VSYNC\b", "0", src)
     flip = DEMO_FLIP_FRAMES if frames else DEMO_FLIP
     src, f = re.subn(r"(?m)^(\s*)gfx\.display\.flip$",
                      lambda m: flip.format(i=m[1], seconds=seconds, frames=frames), src)
-    assert all(n == 1 for n in (w, h, o, f)), f"{name}: its size, open or flip not found once"
-    for _, old, new in DEMO_EDITS[name][:edits]:
+    # a demo unsynced as shipped has no VSYNC to drop
+    assert all(n == 1 for n in (w, h, o, f)) and v <= 1, f"{name}: its size, open, VSYNC or flip not found once"
+    for _, old, new in DEMO_EDITS.get(name, ())[:edits]:
         assert src.count(old) == 1, f"{name}: {old!r} not found once"
         src = src.replace(old, new)
     return src
@@ -1396,7 +1457,16 @@ def demo_program(name: str, seconds: float, vsync: bool, edits: int, frames: int
 HL86 = Path(os.environ.get("HL86_DIR", Path.home() / "work/other/86box-headless"))
 HL86_VMS = Path(os.environ.get("HL86_VMS", HL86.parent / "86box-headless-vms"))
 HL86_ROMS = Path(os.environ.get("HL86_ROMS", Path.home() / "Library/Application Support/86Box/roms"))
+# the fork built with its window (QT=ON), for the eye: timed as the headless one is
+SHOW_86BOX = Path(os.environ.get("SHOW_86BOX", HL86 / "build-qt/src/86Box.app"))
 MACHINES = {"486": "qb-486", "p5": "qb-p100", "p6": "qb-ppro200"}
+# each 3D card's driver, its DLL's name: the drivers share code, so the profiler looks for the card's alone
+CARD_DRIVERS = {"voodoo1": "voodoo1", "voodoo2": "voodoo2", "banshee": "voodoo3", "voodoo3": "voodoo3"}
+
+
+def card_vm(card: str, machine: str | None) -> str:
+    """card's VM: machine's (the Pentium 100's when none), the card added in its 86box.cfg."""
+    return f"{MACHINES[machine or 'p5']}-{card}"
 
 
 def mtools(tool: str, image: Path, *args: str, check: bool = True) -> bytes:
@@ -1406,9 +1476,10 @@ def mtools(tool: str, image: Path, *args: str, check: bool = True) -> bytes:
     return r.stdout
 
 
-def vm_stage(image: Path, d: Path, com: Path, job: tuple, files: dict[str, bytes], last: str) -> Path:
+def vm_stage(image: Path, d: Path, com: Path, job: tuple, files: dict[str, bytes], last: str,
+             sets: tuple[str, ...] = ()) -> Path:
     """com, the job's files and files put in C:\\QB on image, d the scratch: RUN.BAT, which runs the job
-    there into OUT.TXT inside HLPROF's profile window, then last, a DOS command."""
+    there into OUT.TXT inside HLPROF's profile window, then last, a DOS command. sets: NAME=VALUE, SET first."""
     prog, _, args, own = dosrun.job(job)
     qb = d / "QB"
     qb.mkdir()
@@ -1423,7 +1494,8 @@ def vm_stage(image: Path, d: Path, com: Path, job: tuple, files: dict[str, bytes
         (qb / "DEMO.BAS").write_bytes(prog.encode("latin-1"))
     (qb / "J.IN").write_bytes(b"")
     bat = d / "RUN.BAT"
-    lines = ["@ECHO OFF", "CD \\QB", "C:\\HLPROF.COM 1", f"{run} < J.IN > OUT.TXT", "C:\\HLPROF.COM 0", last]
+    lines = ["@ECHO OFF", *(f"SET {v}" for v in sets), "CD \\QB", "C:\\HLPROF.COM 1", f"{run} < J.IN > OUT.TXT",
+             "C:\\HLPROF.COM 0", last]
     bat.write_bytes("".join(f"{n}\r\n" for n in lines).encode())
     mtools("mdeltree", image, "::QB", check=False)
     mtools("mcopy", image, "-s", "-o", str(qb), "::")
@@ -1439,27 +1511,49 @@ def hl86_module():  # noqa: ANN201
     return hl86
 
 
-def vm_rate(machine: str, com: Path, job: tuple, files: dict[str, bytes]) -> str:
-    """Program com's frames a second on 86Box's machine, by its own clock: FPS.TXT's, or its output's.
-    com, the job's files and files go to C:\\QB on the VM's disk, removed after."""
+def vm_rate(vm: str, com: Path, job: tuple, files: dict[str, bytes], realtime: bool = False,
+            sets: tuple[str, ...] = ()) -> str:
+    """Program com's frames a second on 86Box's VM vm (vm_run's), by its own clock: FPS.TXT's, or its output's."""
+    fps, out, code = vm_run(vm, com, job, files, realtime, sets)
+    return rate_of(fps, out) or f"exit {code}"
+
+
+def vm_run(vm: str, com: Path, job: tuple, files: dict[str, bytes], realtime: bool = False,
+           sets: tuple[str, ...] = ()) -> tuple[str, str, int]:
+    """Program com on 86Box's VM vm: its FPS.TXT, its output and its exit code. com, the job's files and files
+    go to C:\\QB on the VM's disk, removed after; what it writes to port 0xE9, printed. realtime: the emulator
+    held to the host's clock, as a 3D card wants: its pixels are drawn at the host's pace, not timed. sets:
+    NAME=VALUE, in its environment."""
     hl86 = hl86_module()
-    image = HL86_VMS / MACHINES[machine] / "c.img"
+    image = HL86_VMS / vm / "c.img"
     with tempfile.TemporaryDirectory() as d:
-        bat = vm_stage(image, Path(d), com, job, files, "C:\\HLEXIT.COM 0")
+        bat = vm_stage(image, Path(d), com, job, files, "C:\\HLEXIT.COM 0", sets)
         try:
-            r = hl86.run_dos(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, bat, timeout=1800)
+            r = hl86.run_dos(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, bat, timeout=1800,
+                             unthrottled=not realtime)
+            if r.debug:
+                print(r.debug, end="", flush=True)
             fps = mtools("mtype", image, "::QB/FPS.TXT", check=False).decode("latin-1")
             out = mtools("mtype", image, "::QB/OUT.TXT", check=False).decode("latin-1")
         finally:
             mtools("mdeltree", image, "::QB", check=False)
-    return rate_of(fps, out) or f"exit {r.code}"
+    return fps, out, r.code
+
+
+# a program's rate and frames, a line of their own: DOS/32A may warn ahead of them; BASIC prints .75 for 0.75
+RATE_LINE = re.compile(r"(?m)^\s*(\d*\.?\d+)\s+(\d+)\s*$")
 
 
 def rate_of(fps: str, out: str) -> str:
-    """FPS.TXT's first number; else the output's rate and frames, a line of their own: DOS/32A may warn
-    ahead of them. Empty, neither."""
-    rates = fps.split()[:1] or re.findall(r"(?m)^\s*(\d+(?:\.\d+)?)\s+\d+\s*$", out)[-1:]
+    """FPS.TXT's first number; else the output's last rate. Empty, neither."""
+    rates = fps.split()[:1] or [r for r, _ in RATE_LINE.findall(out)[-1:]]
     return f"{float(rates[0]):.1f}" if rates else ""
+
+
+def frames_of(out: str) -> int:
+    """The output's last frames: 0, none."""
+    lines = RATE_LINE.findall(out)
+    return int(lines[-1][1]) if lines else 0
 
 
 def dos_rate(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> str:
@@ -1483,11 +1577,17 @@ def dos_rate(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> str
         return r.reason
 
 
-def dos_profile(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> tuple[dosrun.Result, int]:
-    """Program com's job profiled by the map beside it, at cycles a virtual ms, and the frames it drew: FPS.TXT's second
-    number, or its output's."""
+# DOSBox-X's 3D card drawn on the CPU: its OpenGL one needs a window
+DOSBOX_VOODOO = "[voodoo]\nvoodoo_card=software\n"
+
+
+def dos_profile(
+    com: Path, job: tuple, cycles: int, files: dict[str, bytes], extra: str = ""
+) -> tuple[dosrun.Result, int]:
+    """Program com's job profiled by the map beside it, at cycles a virtual ms, extra added to DOSBox's configuration,
+    and the frames it drew: FPS.TXT's second number, or its output's."""
     conf, was = dosrun.CONF, dosrun.COM
-    dosrun.CONF = conf.replace("virtual time rate=20000\n", f"virtual time rate={cycles}\n")
+    dosrun.CONF = conf.replace("virtual time rate=20000\n", f"virtual time rate={cycles}\n") + extra
     assert conf != dosrun.CONF
     dosrun.COM = com
     try:
@@ -1500,14 +1600,16 @@ def dos_profile(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> 
     try:
         return r["demo"], int(float(out.split()[1]))
     except (IndexError, ValueError):
-        sys.exit(f"{com.name}: {r['demo'].reason}: {out.strip()[-300:]}")
+        sys.exit(f"{com.name}: {r['demo'].reason}: {out.strip()[-300:]}\n{r['demo'].screen.strip()[-300:]}")
 
 
-def print_frame_profile(name: str, com: Path, jobs: list[tuple], cycles: int, files: dict[str, bytes], n: int) -> None:
+def print_frame_profile(
+    name: str, com: Path, jobs: list[tuple], cycles: int, files: dict[str, bytes], n: int, extra: str = ""
+) -> None:
     """The cycles, instructions and each function's instructions, memory operands and calls a frame: the longer job's
     less the shorter's, over the frames between, so the start-up drops out. A rep is one instruction and none of its
-    memory operands; the cycles count each of its turns."""
-    (a, fa), (b, fb) = (dos_profile(com, j, cycles, files) for j in jobs)
+    memory operands; the cycles count each of its turns. extra: added to DOSBox's configuration."""
+    (a, fa), (b, fb) = (dos_profile(com, j, cycles, files, extra) for j in jobs)
     frames = fb - fa
     spent = (b.ms - a.ms) * cycles / frames
     run = (b.instructions - a.instructions) / frames
@@ -1516,8 +1618,10 @@ def print_frame_profile(name: str, com: Path, jobs: list[tuple], cycles: int, fi
                  ((a.selfs, b.selfs), (a.memory, b.memory), (a.calls, b.calls)))
         for f in b.selfs
     }
+    unseen = run - sum(insns for insns, _, _ in own.values())
     print(f"{name}: {spent:,.0f} cycles a frame, {run:,.0f} instructions ({run / spent:.0%}), {frames} frames")
     print(f"{'instructions':>12} {'':6} {'memory':>10} {'calls':>8}")
+    print(f"{unseen:>12,.0f} {unseen / run:6.1%} {'':>10} {'':>8}  (run where no function was seen)")
     for f, (insns, memory, calls) in sorted(own.items(), key=lambda kv: -kv[1][0])[:n]:
         print(f"{insns:>12,.0f} {insns / run:6.1%} {memory:>10,.0f} {calls:>8,.0f}  {f}")
 
@@ -1528,13 +1632,13 @@ def cmd_demos(a: argparse.Namespace) -> int:
     none), and each EXE, a map beside it and its seconds its last argument, by function a frame."""
     b = build(".", True)
     qbx = (b.dos.parent / "lib/gfx.qbx").read_bytes()
-    own = {n: (DEMOS / n).read_bytes() for n in ("stage.bas", "meter.bas")}
-    if a.machine:
+    own = demo_modules()
+    if a.machine or a.card:
         return demos_on(a, own)
     if a.profile:
         with tempfile.TemporaryDirectory() as d:
             com = profiled(b, Path(d))
-            for name in a.demo or DEMO_EDITS:
+            for name in a.demo or DEMOS_8:
                 edits = len(DEMO_EDITS[name]) if a.edits is None else a.edits
                 jobs = [(demo_program(name, s, False, edits), "", "", own) for s in DEMO_PROFILE_SECONDS]
                 print_frame_profile(name, com, jobs, a.cycles, {"lib/gfx.qbx": qbx}, a.n)
@@ -1543,7 +1647,7 @@ def cmd_demos(a: argparse.Namespace) -> int:
             print_frame_profile(exe.name, exe, jobs, a.cycles, {}, a.n)
         return 0
     print(f"320x200 at 8 bits on DOS (pentium), {a.cycles} cycles a ms, frames a second over {a.seconds:g} s")
-    for name in a.demo or DEMO_EDITS:
+    for name in a.demo or DEMOS_8:
         edits = DEMO_EDITS[name]
         runs = [(True, 0)] + [(False, n) for n in range(len(edits) + 1)]
         print(f"{name:12}" + "".join(f"{t:>11}" for t in ("shipped", "no vsync", *(e[0] for e in edits))))
@@ -1572,8 +1676,8 @@ def le_object(exe: Path, n: int = 1) -> bytes:
 
 
 def object_base(memory: bytes, code: bytes) -> int:
-    """Where code lies in memory: windows of it found once each, voting for their place less their offset.
-    A fixup changes a window's bytes, so a window holding one finds nothing."""
+    """Where code lies in memory: windows of it found once each, voting for their place less their offset; -1, not
+    there. A fixup changes a window's bytes, so a window holding one finds nothing."""
     votes: dict[int, int] = {}
     for at in range(0, len(code) - 32, max(32, len(code) // 256)):
         w = code[at : at + 32]
@@ -1581,15 +1685,53 @@ def object_base(memory: bytes, code: bytes) -> int:
         if len(set(w)) > 4 and found >= 0 and memory.find(w, found + 1) < 0:
             votes[found - at] = votes.get(found - at, 0) + 1
     base = max(votes, key=votes.__getitem__, default=-1)
-    if votes.get(base, 0) < 16:
-        sys.exit(f"profile: the program's code not found in memory ({votes.get(base, 0)} windows)")
-    return base
+    return base if votes.get(base, 0) >= 16 else -1
+
+
+def dll_code(dll: Path) -> bytes:
+    """i386 DLL dll's .text as its file holds it, before relocation."""
+    b = dll.read_bytes()
+    pe = struct.unpack_from("<I", b, 0x3C)[0]
+    nsections, optsize = (struct.unpack_from("<H", b, pe + at)[0] for at in (6, 20))
+    for i in range(nsections):
+        name, vsize, _, rawsize, rawptr = struct.unpack_from("<8sIIII", b, pe + 24 + optsize + 40 * i)
+        if name.rstrip(b"\0") == b".text":
+            return b[rawptr : rawptr + min(vsize, rawsize)]
+    sys.exit(f"profile: {dll.name} has no .text")
+
+
+def dll_functions(listing: str, taken: frozenset[str] = frozenset()) -> list[tuple[int, str]]:
+    """lld-link's map's functions in .text by offset, statics too; a name two modules share, or one of taken's (the
+    program's), told by its module."""
+    found = re.findall(r"(?m)^\s*0001:([0-9a-f]{8})\s+(\S+)\s+[0-9a-f]+\s+(\S+)\.obj$", listing)
+    names = [n for _, n, _ in found]
+    return sorted((int(at, 16), f"{n} ({o})" if names.count(n) > 1 or n in taken else n) for at, n, o in found)
+
+
+def driver_dll(b: Build, card: str) -> Path:
+    """Build b's driver for card, as the DLL its .DRV is made from."""
+    return b.dos.parent / "drivers" / f"{CARD_DRIVERS[card]}.dll"
+
+
+def driver_images(b: Build, card: str, exe: Path) -> tuple[tuple[bytes, list[tuple[int, str]]], ...]:
+    """Build b's driver for card: its code and functions, from its DLL and map; one named as a function of exe's map
+    is, told by its module."""
+    dll = driver_dll(b, card)
+    taken = frozenset(n.partition(" (")[0] for _, n in map_functions(exe.with_suffix(".map").read_text()))
+    return ((dll_code(dll), dll_functions(dll.with_suffix(".map").read_text(), taken)),)
 
 
 def map_functions(listing: str) -> list[tuple[int, str]]:
-    """The map's functions in object 1, by offset."""
-    found = re.findall(r"(?m)^0001:([0-9a-f]{8})\*?\s+(\S+)", listing)
-    return sorted((int(at, 16), name) for at, name in found)
+    """The map's functions in object 1, by offset; a name two modules share told by its module's file."""
+    found: list[tuple[int, str, str]] = []
+    module = ""
+    for row in listing.splitlines():
+        if m := re.match(r"Module: (.*?)\(", row):
+            module = Path(m[1]).stem
+        elif m := re.match(r"0001:([0-9a-f]{8})\*?\s+(\S+)", row):
+            found.append((int(m[1], 16), m[2], module))
+    names = [n for _, n, _ in found]
+    return sorted((at, f"{n} ({o})" if names.count(n) > 1 else n) for at, n, o in found)
 
 
 @dataclass(frozen=True)
@@ -1601,25 +1743,65 @@ class Samples:
     mhz: float
 
 
-def vm_samples(machine: str, exe: Path, job: tuple, files: dict[str, bytes], late: float = 0.0) -> Samples:
-    """exe's job on 86Box's machine, its CPU's place sampled every 10 emulated us over the job alone: the samples
-    by function of the map beside exe, and the frames the job drew (its output's last number). late: the
-    host's seconds in seeing the job end."""
+BIOS_PROMPT = "Press F1 to continue"
+
+
+def vm_waited(c, text: str, timeout: float) -> None:  # noqa: ANN001
+    """Until VM client c's screen shows text, the BIOS's prompt answered: a VM a killed run left boots to it, its
+    CMOS lost."""
+    deadline = time.monotonic() + timeout
+    while BIOS_PROMPT in c.wait_text(f"{text}|{BIOS_PROMPT}", timeout=deadline - time.monotonic()):
+        c.keys(keys=["F1"])
+        while BIOS_PROMPT in c.screen_text() and time.monotonic() < deadline:
+            c.sleep(100)
+
+
+def vm_autorun(image: Path, bat: Path) -> bytes:
+    """bat run, as RUN.BAT, once image boots: the AUTOEXEC.BAT it had, to put back."""
     hl86 = hl86_module()
-    image = HL86_VMS / MACHINES[machine] / "c.img"
+    was = hl86.dos_get(image, "AUTOEXEC.BAT")
+    auto = bat.with_name("AUTOEXEC.BAT")
+    auto.write_bytes(b"@ECHO OFF\r\nPATH C:\\DOS\r\nC:\\RUN.BAT\r\n")
+    hl86.dos_put(image, bat, "RUN.BAT")
+    hl86.dos_put(image, auto, "AUTOEXEC.BAT")
+    return was
+
+
+def vm_shown(vm: str, com: Path, job: tuple, files: dict[str, bytes], sound: bool = False) -> None:
+    """Program com's job on a copy of 86Box's VM vm, in 86Box's own window: the copy in a directory left to it.
+    sound: the copy given a Sound Blaster 16, BLASTER naming it."""
+    d = Path(tempfile.mkdtemp(prefix="qb-show-"))
+    shutil.copytree(HL86_VMS / vm, d / vm)
+    image = d / vm / "c.img"
+    cfg = d / vm / "86box.cfg"
+    assert not sound or "[Sound]" not in cfg.read_text(), f"{vm} has a sound card already"
+    if sound:
+        cfg.write_text(cfg.read_text() + "\n[Sound]\nsndcard = sb16\n")
+    sets = ("BLASTER=A220 I5 D1 H5 T6",) if sound else ()
+    vm_autorun(image, vm_stage(image, d, com, job, files, "ECHO QB-DONE", sets))
+    subprocess.run(["open", "-n", "-a", SHOW_86BOX, "--args", "-P", d / vm, "-R", HL86_ROMS], check=True)
+    print(f"{vm} in 86Box's window, from {d}")
+
+
+def vm_samples(
+    vm: str, exe: Path, job: tuple, files: dict[str, bytes], late: float = 0.0, realtime: bool = False,
+    images: tuple[tuple[bytes, list[tuple[int, str]]], ...] = (), sets: tuple[str, ...] = (),
+) -> Samples:
+    """exe's job on 86Box's VM vm, its CPU's place sampled every 10 emulated us over the job alone: the samples
+    by function of the map beside exe, or of images' (code, functions) found placed in memory; and the frames the
+    job drew (its output's last number). late: the host's seconds in seeing the job end. realtime: as vm_rate's.
+    sets: NAME=VALUE in DOS's environment."""
+    hl86 = hl86_module()
+    image = HL86_VMS / vm / "c.img"
     with tempfile.TemporaryDirectory() as d:
-        bat = vm_stage(image, Path(d), exe, job, files, "ECHO QB-DONE")
-        orig = hl86.dos_get(image, "AUTOEXEC.BAT")
+        orig = vm_autorun(image, vm_stage(image, Path(d), exe, job, files, "ECHO QB-DONE", sets))
         auto = Path(d) / "AUTOEXEC.BAT"
-        auto.write_bytes(b"@ECHO OFF\r\nPATH C:\\DOS\r\nC:\\RUN.BAT\r\n")
-        hl86.dos_put(image, bat, "RUN.BAT")
-        hl86.dos_put(image, auto, "AUTOEXEC.BAT")
         sock = Path(d) / "s"
-        proc = hl86.launch(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, sock, unthrottled=True)
+        proc = hl86.launch(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, sock, unthrottled=not realtime)
         try:
             with hl86.Client(sock, timeout=1800.0) as c:
                 c.profile_start(interval_us=10)
-                c.wait_text(r"QB-DONE", timeout=1800.0)
+                vm_waited(c, "QB-DONE", 1800.0)
                 time.sleep(late)
                 c.profile_stop(Path(d) / "pcs.json")
                 memory = c.mem_read(0, 16 << 20, Path(d) / "mem.bin")  # the VMs' 16 MB
@@ -1636,22 +1818,26 @@ def vm_samples(machine: str, exe: Path, job: tuple, files: dict[str, bytes], lat
             mtools("mdel", image, "::RUN.BAT", check=False)
         pcs = json.loads((Path(d) / "pcs.json").read_text())
     code = le_object(exe)
-    base = object_base(memory, code)
-    funcs = map_functions(exe.with_suffix(".map").read_text())
-    starts = [at for at, _ in funcs]
+    if object_base(memory, code) < 0:
+        sys.exit("profile: the program's code not found in memory")
+    placed = [(object_base(memory, c), c, f) for c, f in ((code, map_functions(exe.with_suffix(".map").read_text())),
+                                                          *images)]
     by: dict[str, int] = {}
     at: dict[tuple[str, int], int] = {}
     for pc, n in pcs["pcs"].items():
-        off = int(pc, 16) - base
-        i = bisect.bisect_right(starts, off) - 1
-        name = funcs[i][1] if 0 <= off < len(code) and i >= 0 else "(outside)"
+        name, into = "(outside)", 0
+        for base, c, funcs in placed:
+            off = int(pc, 16) - base
+            i = bisect.bisect_right([a for a, _ in funcs], off) - 1
+            if base >= 0 and 0 <= off < len(c) and i >= 0:
+                name, into = funcs[i][1], off - funcs[i][0]
         by[name] = by.get(name, 0) + n
         if name != "(outside)":
-            at[name, off - funcs[i][0]] = at.get((name, off - funcs[i][0]), 0) + n
-    frames = re.findall(r"(?m)^\s*\d+(?:\.\d+)?\s+(\d+)\s*$", out)
+            at[name, into] = at.get((name, into), 0) + n
+    frames = frames_of(out)
     if not frames:
         sys.exit(f"profile: no frames in the output: {out[-200:]!r}")
-    return Samples(by, at, int(frames[-1]), int(pcs["interval_us"]), mhz)
+    return Samples(by, at, frames, int(pcs["interval_us"]), mhz)
 
 
 def gfx_objects(b: Build) -> list[Path]:
@@ -1663,28 +1849,46 @@ def gfx_objects(b: Build) -> list[Path]:
     return [b.root / o for o in g.group(1).split()]
 
 
-def by_line(b: Build, listing: str, name: str, offsets: dict[int, float], d: Path) -> dict[str, float]:
-    """name's cycles by offset as by source line, inlined callees' lines their own. Its object, the
-    map's module for it, is built again with DWARF line tables, the same code; a sample is the
-    block that ran, charged to its first instruction's line."""
+def object_of(b: Build, listing: str, name: str, dlls: tuple[Path, ...]) -> tuple[Path, str] | None:
+    """The object name's code is from, and its symbol there: the program map's module for it, gfx's
+    slice's or the program's own; else a driver's, by its DLL's map and link. None, in neither."""
+    sym, _, mod = name.removesuffix(")").partition(" (")  # map_functions' name two modules share
     module = ""
     for row in listing.splitlines():
         if m := re.match(r"Module: (.*?)\(", row):
             module = m[1]
-        elif re.match(rf"0001:[0-9a-f]{{8}}\*?\s+{re.escape(name)}$", row):
-            break
-    else:
+        elif re.match(rf"0001:[0-9a-f]{{8}}\*?\s+{re.escape(sym)}$", row) and mod in ("", Path(module).stem):
+            at = re.search(r"slice/(\d+)_[^/]*$", module)
+            obj = gfx_objects(b)[int(at[1])] if at else Path(module)
+            return obj.resolve(), sym.removeprefix("_slice") if at else sym
+    for dll in dlls:
+        found = re.search(rf"(?m)^\s*0001:[0-9a-f]{{8}}\s+{re.escape(sym)}\s+[0-9a-f]+\s+({mod or r'\S+'}\.obj)$",
+                          dll.with_suffix(".map").read_text())
+        if found:
+            rel = str(dll.resolve().relative_to(b.root.resolve()))
+            made = subprocess.run(["make", "-n", "-B", rel], cwd=b.root, capture_output=True, text=True).stdout
+            link = next(c for c in made.splitlines() if f"/out:{rel}" in c)
+            return (b.root / next(o for o in link.split() if Path(o).name == found[1])).resolve(), sym
+    return None
+
+
+def by_line(
+    b: Build, listing: str, name: str, offsets: dict[int, float], d: Path, dlls: tuple[Path, ...] = ()
+) -> dict[str, float]:
+    """name's cycles by offset as by source line, path:line, inlined callees' lines their own. Its
+    object (object_of) is built again with DWARF line tables, the same code; a sample is the block
+    that ran, charged to its first instruction's line."""
+    found = object_of(b, listing, name, dlls)
+    if not found or not found[0].is_relative_to(b.root.resolve()):
         return {}
-    at = re.search(r"slice/(\d+)_[^/]*$", module)
-    if not at:
-        return {}
-    obj = gfx_objects(b)[int(at[1])]
-    rel = str(obj.relative_to(b.root))
+    obj, sym = found
+    rel = str(obj.relative_to(b.root.resolve()))
     made = subprocess.run(["make", "-n", "-B", rel], cwd=b.root, capture_output=True, text=True).stdout
-    cmd = next(c for c in made.splitlines() if f"-o {rel}" in c)
+    cmd = next((c for c in made.splitlines() if f"-o {rel}" in c), None)
+    if not cmd:  # not C's: assembled, without line tables
+        return {}
     lined = d / f"{obj.stem}.lines.obj"
     subprocess.run(cmd.replace(f"-o {rel}", f"-gdwarf-4 -o {lined}"), shell=True, cwd=b.root, check=True)
-    sym = name.removeprefix("_slice")
 
     def listing_of(o: Path, lines: bool) -> str:
         flags = ["-d", "--no-show-raw-insn", *(["-l"] if lines else []), f"--disassemble-symbols={sym}"]
@@ -1699,7 +1903,7 @@ def by_line(b: Build, listing: str, name: str, offsets: dict[int, float], d: Pat
     where, start, lines = "?", -1, {}
     for row in text.splitlines():
         if m := re.match(r"; (\S+):(\d+)", row):
-            where = f"{Path(m[1]).name}:{m[2]}"
+            where = f"{m[1]}:{m[2]}"
         elif m := re.match(r"\s*([0-9a-f]+):", row):
             start = int(m[1], 16) if start < 0 else start
             lines[int(m[1], 16) - start] = where
@@ -1711,72 +1915,191 @@ def by_line(b: Build, listing: str, name: str, offsets: dict[int, float], d: Pat
 
 
 def source_text(b: Build, where: str) -> str:
-    """The source line file:line names, under stdlib/gfx/src; empty when not found."""
-    name, _, line = where.partition(":")
-    found = next(iter((b.root / "stdlib/gfx/src").rglob(name)), None)
-    rows = found.read_text().splitlines() if found and line.isdigit() else []
+    """The source line path:line names, a path under b's root or absolute; empty when not found."""
+    name, _, line = where.rpartition(":")
+    found = b.root / name
+    rows = found.read_text().splitlines() if found.is_file() and line.isdigit() else []
     return rows[int(line) - 1].strip() if rows and int(line) <= len(rows) else ""
 
 
 def print_vm_profile(
     name: str,
-    machine: str,
+    vm: str,
     exe: Path,
     jobs: list[tuple],
     files: dict[str, bytes],
     n: int,
     inside: list[str],
     lined: Build | None = None,
+    realtime: bool = False,
+    images: tuple[tuple[bytes, list[tuple[int, str]]], ...] = (),
+    dlls: tuple[Path, ...] = (),
+    sets: tuple[str, ...] = (),
 ) -> None:
-    """Each function's cycles a frame on 86Box's machine, by time sampled: the longer job's less the
+    """Each function's cycles a frame on 86Box's VM vm, by time sampled: the longer job's less the
     shorter's, over the frames between, so the start-up drops out. Each of inside's functions by
     offset too, a sample landing on its block's first instruction; with lined, the build, by source
     line instead."""
-    a, b = (vm_samples(machine, exe, j, files) for j in jobs)
+    a, b = (vm_samples(vm, exe, j, files, realtime=realtime, images=images, sets=sets) for j in jobs)
     frames = b.frames - a.frames
     per = b.interval_us * b.mhz / frames
     cycles = {f: (b.by.get(f, 0) - a.by.get(f, 0)) * per for f in b.by}
     total = sum(cycles.values())
-    print(f"{name} on {machine}: {total:,.0f} cycles a frame ({b.mhz * 1e6 / total:.1f} fps), {frames} frames")
+    print(f"{name} on {vm}: {total:,.0f} cycles a frame ({b.mhz * 1e6 / total:.1f} fps), {frames} frames")
+    # each run its own boot, held to the host's clock; under 1%, a start-up's sampling noise
+    if fewer := sorted((c, f) for f, c in cycles.items() if c < -0.01 * total):
+        print("  the runs disagree, a frame's cycles unsure; the shorter's more: "
+              + ", ".join(f"{f} {c:,.0f}" for c, f in fewer))
     for f, c in sorted(cycles.items(), key=lambda kv: -kv[1])[:n]:
         print(f"{c:>12,.0f} {c / total:6.1%}  {f}")
     for f in inside:
         offs = {k[1]: (v - a.at.get(k, 0)) * per for k, v in b.at.items() if k[0] == f}
-        if lined:
-            with tempfile.TemporaryDirectory() as d:
-                lines = by_line(lined, exe.with_suffix(".map").read_text(), f, offs, Path(d))
+        with tempfile.TemporaryDirectory() as d:
+            lines = by_line(lined, exe.with_suffix(".map").read_text(), f, offs, Path(d), dlls) if lined else {}
+        if lines and lined:
             print(f"{f}, {cycles.get(f, 0):,.0f} cycles, by line:")
             for where, c in sorted(lines.items(), key=lambda kv: -kv[1])[:n]:
-                print(f"{c:>12,.0f} {c / total:6.1%}  {where:16} {source_text(lined, where)[:70]}")
+                print(f"{c:>12,.0f} {c / total:6.1%}  {Path(where).name:16} {source_text(lined, where)[:70]}")
             continue
-        print(f"{f}, by offset:")
+        print(f"{f}, by offset{', no lines found' if lined else ''}:")
         for off, c in sorted(offs.items(), key=lambda kv: -kv[1])[:n]:
             print(f"{c:>12,.0f} {c / total:6.1%}  +{off:#x}")
 
 
+def drivers_of(b: Build) -> dict[str, bytes]:
+    """Build b's accelerator drivers, by their place beside basic32.exe."""
+    return {f"lib/drivers/{f.name}": f.read_bytes() for f in (b.dos.parent / "lib/drivers").glob("*.DRV")}
+
+
+def driver_maps(b: Build) -> dict[str, bytes]:
+    """Each of build b's drivers' link maps beside it, where DOSBox-X's debugger looks for a DLL's names."""
+    return {f"lib/drivers/{m.stem.upper()}.MAP": m.read_bytes() for m in (b.dos.parent / "drivers").glob("*.map")}
+
+
 def demos_on(a: argparse.Namespace, own: dict[str, bytes]) -> int:
     """demos --machine: each demo as shipped but for vsync, built from each --rev and the tree, then
-    each EXE, on 86Box's machine. --profile: each build's, by function."""
+    each EXE, on 86Box's machine. --card: on the card's VM, drawn in pages and by the card. --profile:
+    each build's, by function."""
+    if a.card:
+        return demos_on_card(a, own)
     builds = [(rev, build(rev, True)) for rev in [*(a.rev or []), "."]]
     libs = [{"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()} for _, b in builds]
     if a.profile:
         for (rev, b), lib in zip(builds, libs, strict=True):
             with tempfile.TemporaryDirectory() as d:
                 exe = profiled(b, Path(d))
-                for name in a.demo or DEMO_EDITS:
+                for name in a.demo or DEMOS_8:
                     f = a.frames or MACHINE_FRAMES[a.machine]
-                    jobs = [(demo_program(name, 0, False, a.edits or 0, n), "", "", own) for n in (f, 2 * f)]
+                    jobs = [(demo_program(name, 0, False, a.edits or 0, frames=n), "", "", own) for n in (f, 2 * f)]
                     print(f"== {rev}")
-                    print_vm_profile(name, a.machine, exe, jobs, lib, a.n, a.at or [], b if a.lines else None)
+                    vm = MACHINES[a.machine]
+                    print_vm_profile(name, vm, exe, jobs, lib, a.n, a.at or [], b if a.lines else None)
         return 0
     print(f"320x200 at 8 bits on 86Box ({a.machine}), frames a second over {a.seconds:g} s")
     print(f"{'':12}" + "".join(f"{rev:>10}" for rev, _ in builds))
-    for name in a.demo or DEMO_EDITS:
+    for name in a.demo or DEMOS_8:
         job = (demo_program(name, a.seconds, False, 0), "", "", own)
-        cells = [vm_rate(a.machine, b.dos, job, lib) for (_, b), lib in zip(builds, libs, strict=True)]
+        cells = [vm_rate(MACHINES[a.machine], b.dos, job, lib) for (_, b), lib in zip(builds, libs, strict=True)]
         print(f"{name:12}" + "".join(f"{c:>10}" for c in cells), flush=True)
     for exe in map(Path, a.exes):
-        print(f"{exe.name:12}{vm_rate(a.machine, exe, ('',), {}):>10}", flush=True)
+        print(f"{exe.name:12}{vm_rate(MACHINES[a.machine], exe, ('',), {}):>10}", flush=True)
+    return 0
+
+
+def demos_on_card(a: argparse.Namespace, own: dict[str, bytes]) -> int:
+    """demos --card: each demo at its own size at --depth bits on the card's VM, in pages and by the card, with vsync
+    and without, the emulator held to the host's clock. --profile: by the card, by function a frame."""
+    b, vm = build(".", True), card_vm(a.card, a.machine)
+    pages = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
+    card = pages | drivers_of(b)
+    if a.show:
+        size = tuple(int(n) for n in a.size.split("x")) if a.size else None
+        prog = demo_program((a.demo or ["CUBE"])[0], a.seconds, False, 0, depth=a.depth, sized=True, size=size)
+        vm_shown(vm, b.dos, (prog, "", "", own), card, a.sound)
+        return 0
+    if a.profile:
+        with tempfile.TemporaryDirectory() as d:
+            exe = profiled(b, Path(d))
+            for name in a.demo or DEMO_EDITS:
+                f = a.frames or MACHINE_FRAMES["p5"]
+                jobs = [
+                    (demo_program(name, 0, False, a.edits or 0, frames=n, depth=a.depth, sized=True), "", "", own)
+                    for n in (f, 2 * f)
+                ]
+                print_vm_profile(name, vm, exe, jobs, card, a.n, a.at or [], b if a.lines else None, True,
+                                 driver_images(b, a.card, exe), (driver_dll(b, a.card),), tuple(a.set or ()))
+        return 0
+    print(f"at their own size at {a.depth} bits on 86Box ({vm}), frames a second over {a.seconds:g} s")
+    print(f"{'':12}" + "".join(f"{t:>10}" for t in ("pages", a.card, "no vsync")))
+    for name in a.demo or DEMO_EDITS:
+        runs = ((pages, True), (card, True), (card, False))
+        programs = [demo_program(name, a.seconds, v, a.edits or 0, depth=a.depth, sized=True) for _, v in runs]
+        cells = [vm_rate(vm, b.dos, (prog, "", "", own), lib, True, tuple(a.set or ()))
+                 for (lib, _), prog in zip(runs, programs, strict=True)]
+        print(f"{name:12}" + "".join(f"{c:>10}" for c in cells), flush=True)
+    return 0
+
+
+def game_jobs() -> dict[str, tuple]:
+    """Each program games times: its job, timed for seconds (MOTHLITE's a frame when 0); its files; its rate."""
+    charlie = charlie_modules()
+    video = charlie["engine/video.bas"]
+    assert video.count(b"display.VSYNC)") == 1, "engine/video.bas's open not found once"
+    charlie["engine/video.bas"] = video.replace(b"display.VSYNC)", b"0)")
+    dat = {"CHARLIE.DAT": CHARLIE.with_suffix(".DAT").read_bytes()}
+    return {
+        "MEADOW": (lambda t: (demo_program("MEADOW", t, False, 0, sized=True), "", "", demo_modules()), {}, rate_of),
+        "MEADOW16": (
+            lambda t: (demo_program("MEADOW", t, False, 0, depth=16, sized=True), "", "", demo_modules()),
+            {},
+            rate_of,
+        ),
+        "PLASMA": (lambda t: (demo_program("PLASMA", t, False, 0), "", "", demo_modules()), {}, rate_of),
+        "MOTHLITE": (lambda t: (fps_program(one=not t), "", "", {}), {}, play_rate),
+        "CHARLIE": (lambda t: (charlie_frames(t), "", "", charlie), dat, rate_of),
+    }
+
+
+def cmd_games(a: argparse.Namespace) -> int:
+    """Programs on the card's VM, without vsync, the emulator held to the host's clock: frames a second in pages and
+    by the card. MEADOW at 640x480, busy, nothing read back, at 8 bits and 16 (MEADOW16); the rest at 320x200x8:
+    PLASMA's whole run, MOTHLITE's play, its autopilot flying; CHARLIE's pilot. --profile: cycles a frame by
+    function, in pages and by the card; --dosbox: instructions a frame by function, on DOSBox-X's Voodoo 2."""
+    if not (a.card or (a.profile and a.dosbox)):
+        sys.exit("games: --card, or --profile --dosbox")
+    b = build(".", True)
+    pages = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
+    jobs = game_jobs()
+    libs = {"pages": pages, a.card or "voodoo2": pages | drivers_of(b) | (driver_maps(b) if a.dosbox else {})}
+    if a.show:
+        job, files, _ = jobs[(a.game or ["MEADOW16"])[0]]
+        vm_shown(card_vm(a.card, a.machine), b.dos, job(a.seconds), files | libs[a.card], a.sound)
+        return 0
+    if a.profile:
+        with tempfile.TemporaryDirectory() as d:
+            exe = profiled(b, Path(d))
+            images = () if a.dosbox else driver_images(b, a.card, exe)
+            for name in a.game or jobs:
+                job, files, _ = jobs[name]
+                runs = [job(0), job(a.seconds)] if name == "MOTHLITE" else [job(a.seconds), job(2 * a.seconds)]
+                for how, lib in libs.items():
+                    if a.dosbox:
+                        print_frame_profile(f"{name} in {how} on DOSBox-X", exe, runs, a.cycles, files | lib, a.n,
+                                            DOSBOX_VOODOO)
+                    else:
+                        print_vm_profile(f"{name} in {how}", card_vm(a.card, a.machine), exe, runs, files | lib, a.n,
+                                         [], None, True, images)
+        return 0
+    vm = card_vm(a.card, a.machine)
+    print(f"8 bits on 86Box ({vm}), frames a second")
+    print(f"{'':12}{'pages':>10}{a.card:>10}")
+    for name in a.game or jobs:
+        job, files, rate = jobs[name]
+        cells = []
+        for lib in libs.values():
+            fps, out, code = vm_run(vm, b.dos, job(a.seconds), files | lib, True, tuple(a.set or ()))
+            cells.append(rate(fps, out) or f"exit {code}")
+        print(f"{name:12}" + "".join(f"{c:>10}" for c in cells), flush=True)
     return 0
 
 
@@ -1816,6 +2139,15 @@ def charlie_program() -> str:
                     f"    n = n + {EACH_REPS}\nLOOP UNTIL TIMER - t0 >= 2\n"
                     "PRINT #1, (TIMER - t0) / n * 1000; n\n" for call in ("REM", *CHARLIE_EACH))
     return head + "\n" + CHARLIE_IMPORTS + CHARLIE_SETUP + loops + "CLOSE #1\nEND\n"
+
+
+def charlie_frames(seconds: float) -> str:
+    """CHARLIE.BAS's Main swapped for its pilot playing for seconds, a tick, Render and Flip a frame: its frames a
+    second and frames printed."""
+    head = CHARLIE.read_text().split("\nMain wd\nend\n", 1)[0]
+    loop = (f"n = 0: t0 = TIMER\nDO\n    {CHARLIE_STEP}\n    Render wd, g, p, lo(), pt()\n    Flip\n    n = n + 1\n"
+            f"LOOP UNTIL TIMER - t0 >= {seconds}\nt0 = TIMER - t0\nCLOSE #1\nCloseScreen\nPRINT n / t0; n\nEND\n")
+    return head + "\n" + CHARLIE_IMPORTS + CHARLIE_SETUP + loop
 
 
 def cmd_charlie(a: argparse.Namespace) -> int:
@@ -2041,12 +2373,35 @@ def main() -> int:
     p.add_argument("--lines", action="store_true", help="--at: by source line, not offset")
     p.add_argument("--frames", type=int, help="--machine --profile: frames in the shorter run, twice in the longer")
     p.add_argument("--rev", action="append", help="--machine: a revision's build timed too, before the tree's")
+    p.add_argument("--card", choices=list(CARD_DRIVERS), help="on --machine's VM with this 3D card, at --depth bits")
+    p.add_argument("--depth", type=int, choices=(8, 16), default=16, help="--card: the demos' bits a pixel")
+    p.add_argument("--set", action="append", metavar="NAME=VALUE", help="--card: in DOS's environment, --profile's too")
+    p.add_argument("--show", action="store_true", help="--card: --demo's first (CUBE when none) without vsync, "
+                   "--seconds long, in 86Box's own window")
+    p.add_argument("--size", metavar="WxH", help="--show: the demo at this size, not its own")
+    p.add_argument("--sound", action="store_true", help="--show: with a Sound Blaster 16")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
     p.add_argument("--profile", action="store_true", help="by function a frame, ours with every edit (normal core)")
     p.add_argument("-n", type=int, default=20, help="--profile: the functions shown")
-    p.add_argument("--edits", type=int, help="--profile: ours with its first so many edits; all when none")
+    p.add_argument("--edits", type=int, help="ours with its first so many edits: --profile, all when none; --card, "
+                   "none")
     sub.add_parser("charlie")
+    p = sub.add_parser("games")
+    p.add_argument("--card", choices=list(CARD_DRIVERS), help="on --machine's VM with this 3D card")
+    p.add_argument("--machine", choices=list(MACHINES), help="--card: 86Box's 486DX2-66, Pentium 100 (the default) "
+                   "or Pentium Pro 200")
+    p.add_argument("--game", action="append", choices=("MEADOW", "MEADOW16", "PLASMA", "MOTHLITE", "CHARLIE"),
+                   help="all when none")
+    p.add_argument("--seconds", type=float, default=10, help="PLASMA's and CHARLIE's")
+    p.add_argument("--set", action="append", metavar="NAME=VALUE", help="in DOS's environment")
+    p.add_argument("--show", action="store_true", help="--card: --game's first (MEADOW16 when none), --seconds "
+                   "long, in 86Box's own window")
+    p.add_argument("--sound", action="store_true", help="--show: with a Sound Blaster 16")
+    p.add_argument("--profile", action="store_true", help="by function a frame, in pages and by the card")
+    p.add_argument("--dosbox", action="store_true", help="--profile: on our DOSBox-X instead, its card a Voodoo 2")
+    p.add_argument("--cycles", type=int, default=25000, help="--dosbox: DOSBox's cycles a virtual ms")
+    p.add_argument("-n", type=int, default=20, help="--profile: the functions shown")
     sub.add_parser("engine")
     a = ap.parse_args()
     return {
@@ -2065,6 +2420,7 @@ def main() -> int:
         "gfx": cmd_gfx,
         "demos": cmd_demos,
         "charlie": cmd_charlie,
+        "games": cmd_games,
         "engine": cmd_engine,
     }[a.cmd](a)
 

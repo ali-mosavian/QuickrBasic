@@ -260,7 +260,7 @@ static inline bool ra_addr1(Regs *const r, const Arry *const ar)
     if ((uint32_t)r->sp->i >= a->fast)
         return false;
 
-    r->sp->a = a->data + (uint32_t)r->sp->i * arry_esize(ar, load32(r->ip + 1));
+    r->sp->a = a->data + (uint32_t)r->sp->i * arry_et_size(ar->decl, a->et); /* its own et */
     r->ip += 2 + VID + VCELL;
     return true;
 }
@@ -586,6 +586,7 @@ static void exec_loop(Session *const S)
                 {exec_fe_addr, &&fe_addr},
                 {exec_fx_idx, &&fx_idx},
                 {exec_call, &&call},
+                {exec_byval, &&byval},
                 {nullptr, &&cold},
             },
             &&eol_to
@@ -972,6 +973,20 @@ ra_addr:
     if (!ra_addr1(&r, &S->arry))
         goto slow;
 
+    goto next;
+
+byval: /* a number's inline, a string's copied by the handler: 540 a frame of MEADOW's natives'
+          arguments went through the ops table */
+    if (r.ip[1])
+        goto slow;
+
+    {
+        const Addr a = addr_of(r.sp);
+
+        (--r.sp)->a = a;
+    }
+
+    r.ip += 2;
     goto next;
 
 fl_ld:

@@ -226,6 +226,6 @@ sub show_options ( _
     t$ = t$ + "  D depth " + on_off$(o.depth)
     t$ = t$ + "  S smooth " + on_off$(o.smooth)
     foot% = st.h - edge% - st.text_h
-    label dst, edge%, foot%, t$, grey&, z%
-    label dst, edge%, edge%, rate_text$(m), grey&, z%
+    label dst, st.foot, edge%, foot%, t$, grey&, z%
+    label dst, st.top, edge%, edge%, rate_text$(m), grey&, z%
 end sub

@@ -1,6 +1,8 @@
 /* The DOS32 layer's own: software interrupts and the BIOS data area. Only plat/dos32 includes it. */
 #ifndef PLAT_DOS32_DOS_H
 #define PLAT_DOS32_DOS_H
+#include "mtrr.h"
+#include "vbe.h"
 #include <cdecl.h>
 #include <stdint.h>
 
@@ -125,9 +127,47 @@ typedef struct {
 uint32_t pdos_vbe_modes(const PdosBlock *b, PdosVbe *card, uint16_t *modes, uint32_t most);
 /* Mode's information (4F01h), in b: false, none. */
 bool pdos_vbe_mode(const PdosBlock *b, uint16_t mode);
+/* The modes gfx shows in, 13h's first, listed the first time asked: their count to *n, the
+   controller to *card; null, no memory. */
+const VbeMode *pdos_vbe_list(uint32_t *n, PdosVbe *card);
+/* Mode m set, linear where it can be, the BIOS's cursors kept: false, the card would not. */
+bool pdos_vbe_set(const VbeMode *m);
+
+/* Physical bytes from phys mapped (DPMI 0800h), kept for the process: their DS address; null, not
+   mapped. A host's mappings are few: map each card once. */
+volatile uint8_t *pdos_map(uint32_t phys, uint32_t bytes);
+
+/* Physical bytes from phys write-combined, by a variable-range MTRR: false, they cannot be (no
+   MTRRs or none with write combining, CS not at privilege 0, none free, or a range overlapping
+   theirs), and are left as they were. One range at a time; uncombined, it is put back as it was
+   (dosmem.c). */
+bool pdos_combine(uint32_t phys, uint32_t bytes);
+void pdos_uncombine(void);
+
+/* CPUID's leaf: EAX, EBX, ECX and EDX to out; false, no CPUID. */
+CDECL bool pdos_cpuid(uint32_t leaf, uint32_t out[4]);
+CDECL uint64_t pdos_rdmsr(uint32_t msr);
+/* Variable-range MTRR n's pair written as Intel's manual changes one. */
+CDECL void pdos_mtrr_write(uint32_t n, const MtrrPair *pair);
+/* Write-combined writes made so far sent on, in order: a locked instruction. */
+CDECL void pdos_fence(void);
+
+/* The DLL (util/image.h) of n bytes placed in the heap, its memory the process's: its export
+   entry's address; null, not a DLL, no such export, no memory, or CS cannot run it there
+   (pext.c). */
+void *pdos_place(const void *dll, uint32_t n, const char *entry);
+
+/* An I/O port's word and double word, beside psys_inp's byte. */
+CDECL uint16_t pdos_inw(uint16_t port);
+CDECL void pdos_outw(uint16_t port, uint16_t v);
+CDECL uint32_t pdos_ind(uint16_t port);
+CDECL void pdos_outd(uint16_t port, uint32_t v);
 
 /* The environment block (index 0) copied to buf, at most cap bytes; its length. */
 CDECL uint32_t pdos_environ(uint32_t index, uint8_t *buf, uint32_t cap);
+/* Environment variable name's value to out, as cap allows with its 0: its length; 0, unset
+   (psys.c). */
+uint32_t pdos_env(const char *name, char *out, uint32_t cap);
 
 /* DS's selector. */
 CDECL uint16_t pdos_ds(void);

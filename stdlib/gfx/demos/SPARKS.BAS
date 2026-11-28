@@ -421,8 +421,8 @@ sub show_help ( _
     r$ = rate_text$(m)
     blank dst, edge%, edge%, t$, z%
     blank dst, edge%, foot%, r$, z%
-    label dst, edge%, edge%, t$, grey&, z%
-    label dst, edge%, foot%, r$, grey&, z%
+    label dst, st.top, edge%, edge%, t$, grey&, z%
+    label dst, st.foot, edge%, foot%, r$, grey&, z%
 end sub
 
 ' Black under where text t goes at x, y, so the last

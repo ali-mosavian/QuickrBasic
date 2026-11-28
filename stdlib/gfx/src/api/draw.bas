@@ -32,6 +32,9 @@ const SOLID = 64
 ' src's four texels round each pixel mixed, where they
 ' fall between pixels.
 const SMOOTH = 128
+' src drawn smaller than its texels read from its mipmap:
+' levels each half the last, the one nearest its scale.
+const MIPMAP = 512
 ' poly's texels in perspective, by its points' z.
 const PERSPECTIVE = 2048
 ' Drawn only where nearer than dst's depth; dst's depth
@@ -347,7 +350,8 @@ declare sub arc cdecl ( _
 '         With no src, the colour.
 '       flags:
 '         FILL (with no src), OPAQUE, BLEND, ADD, SOLID,
-'         SMOOTH, PERSPECTIVE, DEPTH_TEST, DEPTH_WRITE.
+'         SMOOTH, MIPMAP, PERSPECTIVE, DEPTH_TEST,
+'         DEPTH_WRITE.
 '
 '     Raises:
 '       Illegal function call: n out of range, or a z
@@ -355,6 +359,66 @@ declare sub arc cdecl ( _
 '       Subscript out of range: a corner not in points().
 ' :::::::::::
 declare sub poly cdecl ( _
+    byval dst as long, _
+    points() as Vertex, _
+    byval first as integer, _
+    byval n as integer, _
+    byval src as long, _
+    byval colour as long, _
+    byval flags as integer _
+)
+
+' :::::::::::
+' Draws a strip of triangles: each point with the two
+' before it, so a point shared by triangles is given once.
+'
+'     Args:
+'       dst:
+'         The surface drawn into.
+'       points:
+'         Its points, in order along it.
+'       first, n:
+'         The points: points(first) on, 3 or more; n - 2
+'         triangles.
+'       src, colour, flags:
+'         As poly's.
+'
+'     Raises:
+'       Illegal function call: n under 3, or a z under 1
+'       where z is used.
+'       Subscript out of range: a point not in points().
+' :::::::::::
+declare sub triangle_strip cdecl ( _
+    byval dst as long, _
+    points() as Vertex, _
+    byval first as integer, _
+    byval n as integer, _
+    byval src as long, _
+    byval colour as long, _
+    byval flags as integer _
+)
+
+' :::::::::::
+' Draws a fan of triangles: each point after the second
+' with the one before it and the first.
+'
+'     Args:
+'       dst:
+'         The surface drawn into.
+'       points:
+'         Its points: the hub, then in order round it.
+'       first, n:
+'         The points: points(first) on, 3 or more; n - 2
+'         triangles.
+'       src, colour, flags:
+'         As poly's.
+'
+'     Raises:
+'       Illegal function call: n under 3, or a z under 1
+'       where z is used.
+'       Subscript out of range: a point not in points().
+' :::::::::::
+declare sub triangle_fan cdecl ( _
     byval dst as long, _
     points() as Vertex, _
     byval first as integer, _

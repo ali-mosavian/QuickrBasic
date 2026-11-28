@@ -120,6 +120,10 @@ window: by whole multiples, to fit (`FIT`), or stretched (`STRETCH`). With `NATI
 backend draws at the window's resolution instead: the same commands, more pixels, and sprites turn
 smoothly rather than a canvas pixel at a time. Software ignores it.
 
+With `DISCARD` the canvas's pixels are undefined after a flip, for a program that draws all of it
+each frame. A 3D card then draws the next frame without first copying the one it shows. Software
+keeps them anyway.
+
 On DOS, 320×200 at 8 bits is VGA's mode 13h; the rest are VBE 2.0 modes through a linear
 framebuffer, with banked modes for VBE 1.2 cards. A canvas shows in the mode of its depth it fills
 most, by whole multiples, centred.
@@ -149,7 +153,9 @@ be shown in any mode.
 | Mac, Linux, Windows | `SDL_GetFullscreenDisplayModes` | `SDL_SetWindowFullscreenMode`, or a window |
 | The browser | one, the page's | none; full screen by the Fullscreen API, after a click or a key |
 
-On DOS a mode is the whole screen and the one display.
+On DOS a mode is the whole screen and the one display. A 3D card shows the screen centred in the
+smallest mode that holds it: a Voodoo 1 or 2 in a timing of its own, from Glide's tables; a Banshee
+or Voodoo 3 in the VESA mode its BIOS sets.
 
 ## Colour
 
@@ -260,6 +266,9 @@ Everything 2D is a textured quad or a strip of them, so the backends have one pr
   target's depth there and `DEPTH_WRITE` writes it; a keyed texel writes none.
   `surface.clear_depth s` makes s's depth all far. Software only so far: a GPU draws them affine,
   with no depth.
+- `draw.triangle_strip` and `draw.triangle_fan`: `poly`'s arguments, the n points as n - 2
+  triangles, so a point triangles share is given once: a strip's each point with the two before it,
+  a fan's with the one before it and the first.
 - `draw.text dst, x, y, s$, colour` in `set_font`'s font: a sheet of glyphs (`draw.new_font`), or
   the built-in 8 by 8. Its glyphs are sprites, in `colour`, or as the sheet has them with
   `draw.AS_DRAWN`.
@@ -286,8 +295,10 @@ and sets their anchors.
   pixel stages ([Shaders](#shaders)), the same on every backend: flat, textured, vertex-lit,
   lightmapped, warped (water) and sky; keyed and translucent are flags. A lightmapped surface is two
   textures multiplied on a GPU, and a cache of surfaces lit once in software, as Quake's.
-- **Mip levels**: built when a texture is loaded; a GPU picks one for each pixel, software for each
-  polygon.
+- **Mip levels** (`MIPMAP`): made on the CPU from a texture's view, each half the last, an 8-bit
+  one's matched back through row 0, and made again when the texture changes. A GPU reads the one
+  nearest each pixel's step, software each row's in perspective and each polygon's else, a card of
+  DOS's time a texture's that is one tile of its own size.
 - **Models**: a mesh of keyframes, drawn by `scene.mesh_placed` at a matrix and a fractional frame,
   blended between two: in the vertex shader on a GPU, on the CPU in software.
 - **Billboards and particles**: quads facing the camera, with depth.
@@ -324,7 +335,7 @@ pixel: too slow in software. Shaders come in three kinds, by where they can run.
 
 | Platform | Backend |
 |---|---|
-| DOS | software, VGA and VBE |
+| DOS | software, VGA and VBE; a 3D card's fixed-function pipeline: 3dfx's Voodoo 1, 2, Banshee and 3 |
 | Mac, Linux, Windows | SDL_GPU: Metal, Vulkan, Direct3D 12 |
 | The browser | WebGL2 |
 | Tests, and a machine with no GPU | software in C, drawing into a texture the host shows |
@@ -351,6 +362,23 @@ twice: for plain vertices and, with `DISC`, for a circle's. `make shaders` cross
 and SPIRV-Cross, pinned in `tools/deps.sh`, to SPIR-V for SDL_GPU's Vulkan, MSL for its Metal and
 ESSL 3.00 for WebGL2 (`shaders.h`), committed so a build needs neither. `display.open` names the
 languages it brings, and the host answers with the one it takes.
+
+A card of DOS's time has no shaders: its pipeline is fixed, a texel times a colour, keyed, blended
+and depth tested. The list names that pipeline too (minor 6), and gfx works out on the CPU what its
+shader would: a vertex's colour lit, a disc as its rows. DOS plays the list through the driver for
+the card on the bus, loaded from `lib/drivers/` as the screen opens: only that one
+(`src/plat/dos32/accel`).
+
+From minor 7 a fixed host draws 8 bits too. An 8-bit root is an INDEX texture, a byte a texel on
+the card, drawn through the card's 256-entry texture palette. gfx sends that palette's words per
+draw (LOOKUP): the lut's indices into an 8-bit target, the row's colours into any other. A palette
+change costs 1 KB, not the textures sent again, so fades and cycling stay cheap. A card shows
+colours, so the 8-bit screen is held as row 0's colours (COLOURS), exact once redrawn. Other 8-bit
+targets hold each index as a 565 word both of whose bytes are the index, read back exactly. Blends
+at 8 bits are the card's, not the palette's: on the screen in colour, elsewhere drawn where alpha is
+at least a half. SMOOTH at 8 bits is nearest. Read back, the screen is the nearest index.
+
+From minor 8 a texture has levels: TEXTURE gives their count, UPLOAD the level it writes.
 
 ## The host's side
 
@@ -394,7 +422,7 @@ void *(*file_read)(const char *path, uint32_t len, uint32_t *bytes);
 
 | | Gives | Shows by | Clock |
 |---|---|---|---|
-| DOS | pages in memory | a copy to the VBE page not shown, which 4F07h shows at the retrace; else to the one shown, linear or bank by bank; mode 13h's at the retrace | the PIT's count |
+| DOS | pages in memory; a 3D card, lists played by its driver | a copy to the VBE page not shown, which 4F07h shows at the retrace; else to the one shown, linear or bank by bank; mode 13h's at the retrace. A card's frame by its swap at the retrace, queued behind its draws: its colour buffer's (Voodoo 1, 2), or an overlay's over the mode (Banshee, 3) | the PIT's count |
 | Mac, Linux, Windows | a GPU, lists played by SDL_GPU on the interpreter's thread; with no device, pages | the texture `SHOW` names, copied to one SDL's GPU renderer draws; a page as today's frame | `SDL_GetTicksNS` |
 | The browser | a GPU, lists copied to the page and played there with WebGL2; else pages | `requestAnimationFrame` | `performance.now` |
 | `basic` in a terminal, unit tests | pages | nothing: `surface.read` is the tests' eye | `pclk` |

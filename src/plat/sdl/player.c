@@ -122,7 +122,13 @@ static void dropped(Table *const t, void *const item)
 
 static Texture *texture(const uint32_t id) { return find(&p.textures, id); }
 
-static SDL_GPUTexture *make(const uint32_t w, const uint32_t h, const SDL_GPUTextureFormat f)
+/* A w by h texture of format f and its levels. */
+static SDL_GPUTexture *make(
+    const uint32_t w,
+    const uint32_t h,
+    const SDL_GPUTextureFormat f,
+    const uint32_t levels
+)
 {
     const bool depth = f == SDL_GPU_TEXTUREFORMAT_D16_UNORM;
 
@@ -136,7 +142,7 @@ static SDL_GPUTexture *make(const uint32_t w, const uint32_t h, const SDL_GPUTex
             .width = w,
             .height = h,
             .layer_count_or_depth = 1,
-            .num_levels = 1,
+            .num_levels = levels,
         }
 
     );
@@ -191,10 +197,11 @@ static SDL_GPUCopyPass *copying(Pass *const s)
 }
 
 /* t, a depth target if depth, cleared to 0 by a pass of its own. */
-static void cleared(Pass *const s, SDL_GPUTexture *const t, const bool depth)
+static void cleared(Pass *const s, SDL_GPUTexture *const t, const bool depth, const uint32_t level)
 {
     const SDL_GPUColorTargetInfo colour = {
         .texture = t,
+        .mip_level = level,
         .load_op = SDL_GPU_LOADOP_CLEAR,
         .store_op = SDL_GPU_STOREOP_STORE,
     };
@@ -229,12 +236,13 @@ static void add(
     const uint32_t id,
     const uint32_t w,
     const uint32_t h,
-    const uint32_t format
+    const uint32_t format,
+    const uint32_t levels
 )
 {
     const bool depth = format == QX_TEXTURE_DEPTH;
     const uint32_t bpp = format == QX_TEXTURE_INDEX ? 1 : depth ? 2 : RGBA;
-    SDL_GPUTexture *const made = make(w, h, format_of(format));
+    SDL_GPUTexture *const made = make(w, h, format_of(format), levels);
     Texture *const t = made ? added(&p.textures, id) : nullptr;
 
     if (!t) {
@@ -244,7 +252,8 @@ static void add(
 
     *t = (Texture){id, w, h, bpp, made, depth};
 
-    cleared(s, made, depth);
+    for (uint32_t level = 0; level < levels; level++)
+        cleared(s, made, depth, level);
 }
 
 static void drop(const uint32_t id)
@@ -283,20 +292,15 @@ static void buffer(const uint32_t id, const uint32_t bytes, const uint32_t kind)
         b->cap = 0;
 }
 
-static const void *pointer(const uint32_t *const a)
+/* The bytes e's data takes staged, to ALIGN; copied to to unless null. */
+static uint32_t staged(const QxListEntry *const e, uint8_t *const to)
 {
-    return (const void *)(uintptr_t)((uint64_t)a[1] << 32 | a[0]);
-}
-
-/* The bytes op's data takes staged, to ALIGN; copied to to unless null. */
-static uint32_t staged(const uint32_t *const op, uint8_t *const to)
-{
-    const uint32_t *const a = op + 1;
-    const QxListOp code = (QxListOp)(op[0] & 0xFF);
-    const uint32_t bytes = code == QX_LIST_WRITE ? a[1] : code == QX_LIST_UPLOAD ? a[4] * a[5] : 0;
+    const uint32_t *const a = e->arg;
+    const bool write = e->op == QX_LIST_WRITE;
+    const uint32_t bytes = write ? a[1] : e->op == QX_LIST_UPLOAD ? a[4] * a[5] : 0;
 
     if (to && bytes)
-        memcpy(to, pointer(code == QX_LIST_WRITE ? a + 2 : a + 6), bytes);
+        memcpy(to, qx_list_pointer(write ? a + 2 : a + 6), bytes);
 
     return (bytes + ALIGN - 1) / ALIGN * ALIGN;
 }
@@ -305,9 +309,10 @@ static uint32_t staged(const uint32_t *const op, uint8_t *const to)
 static uint32_t stage(const uint32_t *const list, const uint32_t words, uint8_t *const to)
 {
     uint32_t bytes = 0;
+    QxListEntry e;
 
-    for (uint32_t at = 0, size; at < words && (size = list[at] >> QX_LIST_SIZE); at += size)
-        bytes += staged(list + at, to ? to + bytes : nullptr);
+    for (uint32_t at = 0; qx_list_next(list, words, &at, &e);)
+        bytes += staged(&e, to ? to + bytes : nullptr);
 
     return bytes;
 }
@@ -358,8 +363,9 @@ static void write_buffer(Pass *const s, const uint32_t id, const uint32_t bytes)
     );
 }
 
-/* The op's rows from the staging buffer into region a (x, y, w, h, pitch) of texture id. */
-static void upload(Pass *const s, const uint32_t *const a)
+/* The op's rows from the staging buffer into region a (x, y, w, h, pitch, its level) of texture
+   id. */
+static void upload(Pass *const s, const uint32_t *const a, const uint32_t level)
 {
     const Texture *const t = texture(a[0]);
 
@@ -375,6 +381,7 @@ static void upload(Pass *const s, const uint32_t *const a)
         },
         &(SDL_GPUTextureRegion){
             .texture = t->t,
+            .mip_level = level,
             .x = a[1],
             .y = a[2],
             .w = a[3],
@@ -396,7 +403,7 @@ static SDL_GPUShader *shader(
         p.dev,
         &(SDL_GPUShaderCreateInfo){
             .code_size = code[0],
-            .code = pointer(code + 1),
+            .code = qx_list_pointer(code + 1),
             .entrypoint = p.format == SDL_GPU_SHADERFORMAT_MSL ? "main0" : "main",
             .format = p.format,
             .stage = stage,
@@ -636,11 +643,13 @@ static bool player_play(const uint32_t *const list, const uint32_t words)
 
     s.data = staging(list, words);
 
-    for (uint32_t at = 0, size; at < words && (size = list[at] >> QX_LIST_SIZE); at += size) {
-        const uint32_t *const a = list + at + 1;
-        const uint32_t n = size - 1;
+    QxListEntry e;
 
-        switch ((QxListOp)(list[at] & 0xFF)) {
+    for (uint32_t at = 0; qx_list_next(list, words, &at, &e);) {
+        const uint32_t *const a = e.arg;
+        const uint32_t n = e.args;
+
+        switch (e.op) {
         case QX_LIST_BUFFER:
             buffer(a[0], a[1], a[2]);
             break;
@@ -650,7 +659,7 @@ static bool player_play(const uint32_t *const list, const uint32_t words)
             break;
 
         case QX_LIST_TEXTURE:
-            add(&s, a[0], a[1], a[2], a[3]);
+            add(&s, a[0], a[1], a[2], a[3], n > 4 ? a[4] : 1);
             break;
 
         case QX_LIST_FREE:
@@ -659,7 +668,7 @@ static bool player_play(const uint32_t *const list, const uint32_t words)
             break;
 
         case QX_LIST_UPLOAD:
-            upload(&s, a);
+            upload(&s, a, n > 8 ? a[8] : 0);
             break;
 
         case QX_LIST_PIPELINE:
@@ -687,7 +696,7 @@ static bool player_play(const uint32_t *const list, const uint32_t words)
             break;
 
         case QX_LIST_UNIFORMS:
-            SDL_PushGPUVertexUniformData(s.cb, 0, pointer(a + 1), a[0]);
+            SDL_PushGPUVertexUniformData(s.cb, 0, qx_list_pointer(a + 1), a[0]);
             break;
 
         case QX_LIST_DRAW:
@@ -703,7 +712,7 @@ static bool player_play(const uint32_t *const list, const uint32_t words)
             break;
         }
 
-        s.staged += staged(list + at, nullptr);
+        s.staged += staged(&e, nullptr);
     }
 
     end(&s);
@@ -779,10 +788,12 @@ static void player_read(
     download(t ? t->t : nullptr, x, y, w, h, out);
 }
 
-static bool player_open(const uint16_t w, const uint16_t h)
+static bool player_open(const uint16_t w, const uint16_t h, const uint8_t flags)
 {
+    (void)flags; /* the host waits; what it shows is kept apart */
+
     SDL_GPUCommandBuffer *const cb = SDL_AcquireGPUCommandBuffer(p.dev);
-    SDL_GPUTexture *const shown = make(w, h, SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM);
+    SDL_GPUTexture *const shown = make(w, h, SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, 1);
     Pass s = {.cb = cb};
 
     if (!cb || !shown)
@@ -790,7 +801,7 @@ static bool player_open(const uint16_t w, const uint16_t h)
 
     p.w = w;
     p.h = h;
-    cleared(&s, shown, false);
+    cleared(&s, shown, false, 0);
     end(&s);
     finish(cb);
 

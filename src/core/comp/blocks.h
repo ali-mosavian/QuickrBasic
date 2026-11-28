@@ -70,7 +70,7 @@ BlockEnt *blok_find(const Blok *b, uint32_t line, uint32_t off);
 extern const Proc blok_noproc;
 static inline const Proc *blok_proc(const Blok *const b, const uint32_t i)
 {
-    return i && i < b->procs.n ? (const Proc *)btab_at(&b->procs, i) : &blok_noproc;
+    return i && i < b->procs.n ? BTAB_AT(const Proc, &b->procs, i) : &blok_noproc;
 }
 /* Procedure p's parameters the program writes: all but a record or array result's. */
 static inline uint16_t blok_nargs(const Proc *const p)

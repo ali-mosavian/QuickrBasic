@@ -10,7 +10,7 @@
 <text x="326" y="167.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#4f46e5" text-anchor="end">24 bytes each: slices, then parts</text>
 <rect x="32" y="188" width="310" height="34" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
 <text x="48" y="210.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#064e3b" text-anchor="start">slice dos-i386</text>
-<text x="326" y="210.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#059669" text-anchor="end">a QXI image</text>
+<text x="326" y="210.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#059669" text-anchor="end">an i386 DLL</text>
 <rect x="32" y="228" width="310" height="34" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
 <text x="48" y="250.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#064e3b" text-anchor="start">slice macos</text>
 <text x="326" y="250.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#059669" text-anchor="end">a universal dylib</text>
@@ -68,32 +68,18 @@
 <text x="970" y="258" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="10" font-weight="400" fill="#6b7280" text-anchor="start">24</text>
 <text x="440" y="326" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="start">a slice&#x27;s tag: this build&#x27;s pext_tag is loaded, the rest skipped;</text>
 <text x="440" y="342" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="start">a part&#x27;s name: &quot;&quot; the module&#x27;s own, else gfx.qbx/draw is &quot;draw&quot;</text>
-<text x="440" y="380" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#064e3b" text-anchor="start">dos-i386 slice: an image linked at 0 (util/image.c)</text>
-<rect x="440" y="402" width="79.19999999999999" height="40" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
-<text x="479.6" y="426.0" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2937" text-anchor="middle">QXI</text>
-<text x="442" y="396" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="10" font-weight="400" fill="#6b7280" text-anchor="start">0</text>
-<rect x="519.2" y="402" width="26.4" height="40" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
-<text x="532.4000000000001" y="426.0" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2937" text-anchor="middle">1</text>
-<text x="521.2" y="396" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="10" font-weight="400" fill="#6b7280" text-anchor="start">3</text>
-<rect x="545.6" y="402" width="105.6" height="40" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
-<text x="598.4" y="426.0" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2937" text-anchor="middle">stored</text>
-<text x="547.6" y="396" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="10" font-weight="400" fill="#6b7280" text-anchor="start">4</text>
-<rect x="651.2" y="402" width="105.6" height="40" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
-<text x="704.0" y="426.0" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2937" text-anchor="middle">size</text>
-<text x="653.2" y="396" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="10" font-weight="400" fill="#6b7280" text-anchor="start">8</text>
-<rect x="756.8000000000001" y="402" width="105.6" height="40" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
-<text x="809.6" y="426.0" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2937" text-anchor="middle">entry</text>
-<text x="758.8000000000001" y="396" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="10" font-weight="400" fill="#6b7280" text-anchor="start">12</text>
-<rect x="862.4000000000001" y="402" width="105.6" height="40" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
-<text x="915.2" y="426.0" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2937" text-anchor="middle">relocs</text>
-<text x="864.4000000000001" y="396" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="10" font-weight="400" fill="#6b7280" text-anchor="start">16</text>
-<text x="970.0000000000001" y="396" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="10" font-weight="400" fill="#6b7280" text-anchor="start">20</text>
-<rect x="440" y="454" width="300" height="32" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
-<text x="590" y="474" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2937" text-anchor="middle">stored bytes, padded to 4</text>
-<rect x="746" y="454" width="222" height="32" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
-<text x="857" y="474" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2937" text-anchor="middle">relocs × 4-byte offset</text>
-<text x="440" y="508" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="start">placed: zeroed past stored up to size (the bss), the block&#x27;s address added</text>
-<text x="440" y="524" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="start">to the 32-bit word at each offset, entry called (qx_init_&lt;name&gt;)</text>
+<text x="440" y="380" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#064e3b" text-anchor="start">dos-i386 slice: the DLL as lld-link wrote it (util/image.c)</text>
+<rect x="440" y="402" width="96" height="40" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="488.0" y="427" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2937" text-anchor="middle">MZ stub</text>
+<rect x="540" y="402" width="132" height="40" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="606.0" y="427" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2937" text-anchor="middle">PE headers</text>
+<rect x="676" y="402" width="184" height="40" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="768.0" y="427" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2937" text-anchor="middle">its sections</text>
+<rect x="864" y="402" width="104" height="40" rx="3" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="916.0" y="427" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2937" text-anchor="middle">.reloc</text>
+<text x="440" y="476" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="start">placed: each section&#x27;s bytes at its offset in a zeroed block, the block&#x27;s</text>
+<text x="440" y="492" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="start">address less the DLL&#x27;s base added to each HIGHLOW word, qx_init_&lt;name&gt;,</text>
+<text x="440" y="508" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="start">an export, called</text>
 <path d="M342,116.0 L436,146" fill="none" stroke="#4f46e5" stroke-width="1.6" marker-end="url(#ah4f46e5)"/>
 <path d="M342,162.0 L436,284" fill="none" stroke="#4f46e5" stroke-width="1.6" marker-end="url(#ah4f46e5)"/>
 <path d="M342,205.0 L436,422" fill="none" stroke="#059669" stroke-width="1.6" marker-end="url(#ah059669)"/>

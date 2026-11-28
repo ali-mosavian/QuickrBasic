@@ -12,11 +12,15 @@ option disable open, close
 
 ' open's flags: VSYNC, and how the screen is scaled to the
 ' window: whole multiples (none), FIT or STRETCH. NATIVE: a
-' GPU draws at the window's own resolution.
+' GPU draws at the window's own resolution. DISCARD: after
+' a flip the screen's pixels are undefined, for a program
+' that draws all of it each frame; a card then need not
+' copy the frame shown back to draw on.
 const VSYNC = 1
 const NATIVE = 2
 const FIT = 4
 const STRETCH = 8
+const DISCARD = 16
 
 ' features' bits
 const HAS_GPU = 1
@@ -45,6 +49,8 @@ const DREW_STRIP = 11
 const DREW_TEXT = 12
 const DREW_MESH = 13
 const DREW_BILLBOARD = 14
+const DREW_TRIANGLE_STRIP = 15
+const DREW_TRIANGLE_FAN = 16
 
 ' :::::::::::
 ' A monitor's mode.
@@ -164,7 +170,7 @@ end type
 '       depth:
 '         8 (palette indexes), 15, 16 or 32 bits.
 '       flags:
-'         VSYNC, NATIVE, FIT, STRETCH.
+'         VSYNC, NATIVE, FIT, STRETCH, DISCARD.
 '
 '     Returns:
 '       The screen's surface.

@@ -35,18 +35,23 @@ end sub
 """
 
 
-def dll(imports: int = 0, machine: int = 0x14C) -> bytes:
+def dll(
+    imports: int = 0, machine: int = 0x14C, exports: tuple[bytes, ...] = (b"qx_init_t",), reloc: int = 0x3000
+) -> bytes:
     """An i386 DLL as lld-link lays one out, based at 10000000h: one section at 1000h, 300h bytes
-    stored of 2000h. Its word at 1000h points to qx_init_t at 1010h, relocated; its exports at
-    1100h, its relocations at 1200h."""
-    base, va, opt = 0x10000000, 0x1000, 0x58
+    stored of 2000h. Its word at 1000h points to 1010h, its exports' code, by reloc (HIGHLOW);
+    its exports at 1100h, its relocations at 1200h."""
+    base, va, opt, n = 0x10000000, 0x1000, 0x58, len(exports)
     sec = bytearray(0x300)
     struct.pack_into("<I", sec, 0, base + 0x1010)
     sec[0x10:0x14] = b"\x31\xc0\xc3\x90"
-    struct.pack_into("<IIIIIIIIIII", sec, 0x100, 0, 0, 0, 0, 1, 1, 1, va + 0x140, va + 0x144, va + 0x148, 0)
-    struct.pack_into("<IIH", sec, 0x140, va + 0x10, va + 0x150, 0)
-    sec[0x150:0x15A] = b"qx_init_t\0"
-    struct.pack_into("<IIHH", sec, 0x200, va, 12, 0x3000, 0)
+    struct.pack_into("<IIIIIIIIIII", sec, 0x100, 0, 0, 0, 0, 1, n, n, va + 0x140, va + 0x160, va + 0x180, 0)
+    for i, name in enumerate(exports):
+        struct.pack_into("<I", sec, 0x140 + 4 * i, va + 0x10)
+        struct.pack_into("<I", sec, 0x160 + 4 * i, va + 0x190 + 16 * i)
+        struct.pack_into("<H", sec, 0x180 + 2 * i, i)
+        sec[0x190 + 16 * i : 0x191 + 16 * i + len(name)] = name + b"\0"
+    struct.pack_into("<IIHH", sec, 0x200, va, 12, reloc, 0)
     head = bytearray(0x400)
     head[0:2] = b"MZ"
     struct.pack_into("<I", head, 0x3C, 0x40)
@@ -172,24 +177,30 @@ if __name__ == "__main__":
         if qbx.HEAD.unpack_from(out.read_bytes())[3] != 1 or qbx.unpack(out.read_bytes())[0] != {"": face.read_bytes()}:
             bad.append("pack --minor 1 wrote another minor, or took the flag for an interface")
 
-    # a DOS slice is the DLL as an image at 0 (util/image.c): its sections where they lie, its words rebased
-    img = qbx.image(dll())
-    magic, stored, size, entry, nrelocs = qbx.IMAGE.unpack_from(img)
-    words = img[qbx.IMAGE.size :]
-    padded = (stored + 3) & ~3
-    relocs = struct.unpack_from(f"<{nrelocs}I", words, padded)
-    if (magic, size, entry, relocs) != (b"QXI\x01", 0x3000, 0x1010, (0x1000,)):
-        bad.append(f"a DLL's image wrong: {(magic, size, entry, relocs)}")
-    if struct.unpack_from("<I", words, 0x1000)[0] != 0x1010 or words[0x1010:0x1013] != b"\x31\xc0\xc3":
-        bad.append("a DLL's image not rebased to 0, or its code not where it lies")
-    if stored > 0x1300 or len(img) != qbx.IMAGE.size + padded + 4 * nrelocs:
-        bad.append(f"a DLL's image stored its zeros: {stored} bytes")
-    if qbx.unpack(qbx.pack({}, {"dos-i386": dll()}))[1]["dos-i386"] != img:
-        bad.append("pack kept a DOS slice's DLL, not its image")
-    for why, data in (("imports", dll(imports=0x1250)), ("x86-64", dll(machine=0x8664)), ("not a DLL", b"MZ")):
+    # a DOS slice is its DLL as lld-link wrote it, checked as util/image.c loads one
+    if qbx.unpack(qbx.pack({}, {"dos-i386": dll()}))[1]["dos-i386"] != dll():
+        bad.append("pack changed a DOS slice's DLL")
+    for why, data in (
+        ("imports", dll(imports=0x1250)),
+        ("is x86-64's", dll(machine=0x8664)),
+        ("is not one", b"MZ"),
+        ("exports no qx_init_", dll(exports=(b"init",))),
+        ("relocates a 64-bit word", dll(reloc=0xA000)),
+    ):
         try:
-            qbx.image(data)
-            bad.append(f"a DLL that {why} made an image")
+            qbx.pack({}, {"dos-i386": data})
+            bad.append(f"a DLL that {why} was packed")
+        except qbx.QbxError:
+            pass
+
+    # a driver file is its DLL, exporting its cards' IDs and its entry
+    driver = dll(exports=(b"accel_init", b"accel_ids"))
+    if qbx.driver(driver) != driver:
+        bad.append("a driver file is not its DLL")
+    for why, data in (("accel_ids", dll(exports=(b"accel_init",))), ("accel_init", dll(exports=(b"accel_ids",)))):
+        try:
+            qbx.driver(data)
+            bad.append(f"a driver exporting no {why} was made")
         except qbx.QbxError:
             pass
 

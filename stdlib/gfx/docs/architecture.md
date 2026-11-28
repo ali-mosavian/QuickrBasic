@@ -33,7 +33,6 @@ backend keeps are in [design.md](design.md).
 | `src/backend/gpu` | `GpuState` | The GPU renderer: a frame recorded as a list the host plays, and the one shader |
 | `src/base` | | Pixel formats and colour maths, geometry, the pixel rule, discs, depth values, maths |
 | `src/image` | | BMP and PNG to pixels; PNG's inflate |
-| `src/platform/dos` | | What the DOS slice lacks: `memcpy` and `memset` |
 
 ## Boundaries
 
@@ -85,6 +84,8 @@ backend keeps are in [design.md](design.md).
   `SMOOTH` has its own, which mixes the four texels round each pixel as the GPU's shader does.
 - **Depth** is 1/z in 16 bits, a buffer for each root surface, made on its first `DEPTH_TEST` or
   `DEPTH_WRITE` draw.
+- **Levels** (`MIPMAP`) are made by `core/levels.c`, kept for each root by its version. The
+  scanner hands a perspective row the level its nearer end reads; an affine polygon reads one.
 
 ## GPU
 
@@ -92,12 +93,18 @@ backend keeps are in [design.md](design.md).
 - A polygon's corners carry their depth, 1/z, and in perspective their z as w, so the GPU steps
   texels and depth as the scanner does. A surface drawn with depth gets a 16-bit depth texture.
 - `gpu.c` records the frame: textures made and sent, rows the CPU wrote sent again, pipelines,
-  passes, clips and reads back.
+  passes, clips and reads back. A `MIPMAP` source has a texture of its own with its levels, made
+  by `core/levels.c` and sent; the shader reads the one each pixel's step is nearest.
 - `list.c` writes the list the host plays (`src/qx/qxlist.h`): its words, vertices, indices and
   batches.
 - The one shader is in `shaders/`. `make shaders` crosses it into SPIR-V, MSL and ESSL
   (`shaders.h`).
-- The host plays the list on the interpreter's thread (SDL_GPU) or on the page's (WebGL2).
+- `fixed.c` draws on a host with no shaders (the list's FIXED): each draw's stages as a fixed
+  pipeline, its vertices lit on the CPU. Each root is its own texture, an 8-bit one INDEX, drawn
+  through LOOKUP; an 8-bit canvas is shown through COLOURS; a disc is drawn as its rows
+  (`base/disc.c`).
+- The host plays the list on the interpreter's thread (SDL_GPU, DOS's 3D card) or on the page's
+  (WebGL2).
   [design.md](design.md#backends) says why gfx records a list.
 
 ## The package

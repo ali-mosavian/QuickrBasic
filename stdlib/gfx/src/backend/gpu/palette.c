@@ -1,4 +1,5 @@
-/* The palette on the GPU (backend/gpu/gpu.h's gpu_palette): its rows, then row 0's map. */
+/* The palette on the GPU (backend/gpu/gpu.h's gpu_palette): its rows, then row 0's map; on a
+   fixed host, row 0 as COLOURS. */
 #include "backend/gpu/gpu.h"
 #include "core/mem.h"
 
@@ -42,9 +43,34 @@ static bool send_map(Gpu *const g, Palette *const pal)
     return list_op(&g->list, QX_LIST_UPLOAD, args, 8);
 }
 
+/* Row 0 sent as COLOURS: false, no memory. */
+static bool send_colours(Gpu *const g, const Palette *const pal)
+{
+    uint32_t *const colours = list_keep(&g->list, QX_LIST_INDICES * sizeof *colours);
+    uint32_t args[2];
+
+    if (!colours)
+        return false;
+
+    for (uint32_t i = 0; i < QX_LIST_INDICES; i++)
+        colours[i] = pal->rows[0][i] & PAL_WHITE;
+
+    list_pointer(args, colours);
+    return list_op(&g->list, QX_LIST_COLOURS, args, 2);
+}
+
 bool gpu_palette(Gpu *const g, Palette *const pal, const bool map)
 {
     const uint32_t row0 = pal->changed[0] + 1;
+
+    /* a fixed host's texels carry their colours: an 8-bit canvas's are COLOURS' */
+    if (g->fixed) {
+        if (g->eight && row0 != g->colours)
+            g->colours = send_colours(g, pal) ? row0 : 0;
+
+        return !g->eight || g->colours;
+    }
+
     uint32_t changes = 1;
 
     for (uint32_t r = 0; r < PAL_ROWS; r++)

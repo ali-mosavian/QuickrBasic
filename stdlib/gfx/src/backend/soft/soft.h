@@ -32,10 +32,12 @@ void soft_line(const SoftTarget *t, Vec a, Vec b, uint32_t colour);
 void soft_outline(const SoftTarget *t, const Vec *p, uint32_t n, uint32_t colour);
 /* A convex polygon of n corners, 3 up to SCAN_MAXV: s's texels, affine or with draw.PERSP in
    perspective, keyed unless OPAQUE, u repeating when wrap, else u and v inside s; s null, colour.
-   ZTEST draws a pixel only nearer than t's depth there, ZSET writes the depth of each drawn. */
+   ZTEST draws a pixel only nearer than t's depth there, ZSET writes the depth of each drawn.
+   levels: s's (MIPMAP), its at[0] unused for s; null, s's own texels only. */
 void soft_poly(
     const SoftTarget *t,
     const Pixels *s,
+    const Levels *levels,
     const Corner *c,
     uint32_t n,
     uint32_t colour,

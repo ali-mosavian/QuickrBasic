@@ -30,11 +30,11 @@ bool gpu_sync(Gpu *const g, const Pixels px, const uint32_t h)
     g->count.waits++;
     const uint32_t bytes = px_bytes(px.format);
 
+    /* an 8-bit root's index is in alpha: the shader's, or each byte a fixed host's */
     for (int32_t y = 0; y < px.h; y++)
         for (int32_t x = 0; x < px.w; x++) {
             const uint8_t *const c = rgba + (y * px.w + x) * RGBA;
             const uint32_t rgb = (uint32_t)c[0] << 16 | (uint32_t)c[1] << 8 | c[2];
-
             const uint32_t v = px.format == PX_8    ? c[3]
                                : px.format == PX_32 ? (uint32_t)c[3] << 24 | rgb
                                : c[3] < HALF        ? 0
@@ -44,5 +44,6 @@ bool gpu_sync(Gpu *const g, const Pixels px, const uint32_t h)
 
     mem_free(rgba);
     e->drawn = false;
+    g->epoch++;
     return true;
 }

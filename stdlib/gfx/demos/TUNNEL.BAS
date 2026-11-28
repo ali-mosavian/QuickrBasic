@@ -270,7 +270,7 @@ sub show_help ( _
     t$ = "UP/DN speed" + str$(int(pace * 100) / 100)
     t$ = t$ + "   S smooth " + on_off$(smooth)
 
-    label dst, edge%, edge%, t$, grey&, z%
+    label dst, st.top, edge%, edge%, t$, grey&, z%
     foot% = st.h - edge% - st.text_h
-    label dst, edge%, foot%, rate_text$(m), grey&, z%
+    label dst, st.foot, edge%, foot%, rate_text$(m), grey&, z%
 end sub

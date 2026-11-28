@@ -9,7 +9,29 @@ const BASE_H = 240
 const GLYPH = 8
 
 ' :::::::::::
-' A screen's measures.
+' A line of text drawn scaled, kept between frames: made
+' again only when its text or colours change.
+'
+'     Attributes:
+'       text:
+'         The text it holds.
+'       colour, shade:
+'         The text's colour and its shadow's.
+'       surface:
+'         The text in colour at scale 1: 0, none yet.
+'       shadow:
+'         The text in shade: 0, none.
+' :::::::::::
+type Label
+    text as string
+    colour as long
+    shade as long
+    surface as long
+    shadow as long
+end type
+
+' :::::::::::
+' A screen's measures, and its lines of text.
 '
 '     Attributes:
 '       w, h:
@@ -22,6 +44,8 @@ const GLYPH = 8
 '         Text's scale: unit, whole, at least 1.
 '       text_h:
 '         A line of text's height at zoom.
+'       top, foot:
+'         The lines of text at its top and its foot.
 ' :::::::::::
 type Stage
     w as integer
@@ -31,6 +55,8 @@ type Stage
     unit as single
     zoom as integer
     text_h as integer
+    top as Label
+    foot as Label
 end type
 
 ' :::::::::::
@@ -60,11 +86,97 @@ sub measure (byval dst as long, st as Stage)
 end sub
 
 ' :::::::::::
+' Makes a surface of text in the built-in font.
+'
+'     Args:
+'       t:
+'         The text.
+'       colour:
+'         Its colour.
+'
+'     Returns:
+'       The surface, the text's size.
+' :::::::::::
+function lettered& (byval t as string, byval colour as long)
+    s& = gfx.surface.new(gfx.draw.text_width(t), GLYPH)
+    gfx.draw.text s&, 0, 0, t, colour
+    lettered& = s&
+end function
+
+' :::::::::::
+' Makes a label hold text in colour, and in shade when
+' shaded, unless it already does.
+'
+'     Args:
+'       l:
+'         The label.
+'       t:
+'         The text.
+'       colour, shade:
+'         The text's colour and its shadow's.
+'       shaded:
+'         Whether it has a shadow.
+' :::::::::::
+sub kept ( _
+    l as Label, _
+    byval t as string, _
+    byval colour as long, _
+    byval shade as long, _
+    byval shaded as integer _
+)
+    same% = l.surface <> 0 and t = l.text
+    same% = same% and colour = l.colour and shade = l.shade
+    same% = same% and shaded = (l.shadow <> 0)
+
+    if same% then exit sub
+
+    if l.surface then gfx.surface.free l.surface
+
+    if l.shadow then gfx.surface.free l.shadow
+
+    l.text = t
+    l.colour = colour
+    l.shade = shade
+    l.surface = lettered&(t, colour)
+    l.shadow = 0
+
+    if shaded then l.shadow = lettered&(t, shade)
+end sub
+
+' :::::::::::
+' Draws a surface scaled.
+'
+'     Args:
+'       dst:
+'         The surface drawn into.
+'       s:
+'         The surface drawn.
+'       x, y:
+'         Its top left in dst.
+'       zoom:
+'         Its scale, whole.
+' :::::::::::
+sub stamped ( _
+    byval dst as long, _
+    byval s as long, _
+    byval x as single, _
+    byval y as single, _
+    byval zoom as integer _
+)
+    ' the first texel's centre, so each texel covers
+    ' whole pixels of dst
+    half! = (zoom - 1) / 2
+    gfx.draw.sprite_turned dst, x + half!, y + half!, 0, zoom, s, 0
+end sub
+
+' :::::::::::
 ' Draws text in the built-in font, scaled.
 '
 '     Args:
 '       dst:
 '         The surface drawn into.
+'       l:
+'         The text's label, kept for the next frame.
 '       x, y:
 '         The text's top left.
 '       t:
@@ -76,6 +188,7 @@ end sub
 ' :::::::::::
 sub label ( _
     byval dst as long, _
+    l as Label, _
     byval x as single, _
     byval y as single, _
     byval t as string, _
@@ -89,13 +202,8 @@ sub label ( _
         exit sub
     end if
 
-    s& = gfx.surface.new(gfx.draw.text_width(t), GLYPH)
-    gfx.draw.text s&, 0, 0, t, colour
-    ' the first texel's centre, so each texel covers
-    ' whole pixels of dst
-    half! = (zoom - 1) / 2
-    gfx.draw.sprite_turned dst, x + half!, y + half!, 0, zoom, s&, 0
-    gfx.surface.free s&
+    kept l, t, colour, 0, 0
+    stamped dst, l.surface, x, y, zoom
 end sub
 
 ' :::::::::::
@@ -104,6 +212,8 @@ end sub
 '     Args:
 '       dst:
 '         The surface drawn into.
+'       l:
+'         The text's label, kept for the next frame.
 '       x, y:
 '         The text's top left.
 '       t:
@@ -117,6 +227,7 @@ end sub
 ' :::::::::::
 sub label_shaded ( _
     byval dst as long, _
+    l as Label, _
     byval x as single, _
     byval y as single, _
     byval t as string, _
@@ -124,8 +235,17 @@ sub label_shaded ( _
     byval shade as long, _
     byval zoom as integer _
 )
-    label dst, x + zoom, y + zoom, t, shade, zoom
-    label dst, x, y, t, colour, zoom
+    if t = "" then exit sub
+
+    if zoom <= 1 then
+        gfx.draw.text dst, x + zoom, y + zoom, t, shade
+        gfx.draw.text dst, x, y, t, colour
+        exit sub
+    end if
+
+    kept l, t, colour, shade, -1
+    stamped dst, l.shadow, x + zoom, y + zoom, zoom
+    stamped dst, l.surface, x, y, zoom
 end sub
 
 ' :::::::::::

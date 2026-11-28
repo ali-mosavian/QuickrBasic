@@ -14,11 +14,28 @@ typedef enum { PIPELINE_PLAIN, PIPELINE_ROUND, PIPELINE_SIMPLE, PIPELINE_KINDS }
 /* The kind of a draw of plain vertices like v. */
 PipelineKind pipeline_kind(const GpuVertex *v);
 
-/* The shader is in language (QxShader). */
+/* A pipeline's blends and depths (QxDepth). */
+enum {
+    PIPELINE_BLENDS = QX_BLEND_KEEP + 1,
+    PIPELINE_DEPTHS = (QX_DEPTH_TEST | QX_DEPTH_WRITE) + 1,
+};
+
+/* The shader is in language (QxShader), or there is none: FIXED. */
 bool pipeline_speaks(uint32_t language);
-/* The pipeline for vertices of kind k with blend and depth (QxDepth): 1 up, a bit of Gpu.made
-   each. */
-uint32_t pipeline_id(PipelineKind k, QxBlend blend, uint32_t depth);
+/* The pipeline for vertices of kind k (a PipelineKind, or fixed.c's) with blend and depth: 1 up to
+   GPU_PIPELINES, a bit of Gpu.made each. */
+uint32_t pipeline_id(uint32_t k, QxBlend blend, uint32_t depth);
+
+/* Pipeline id is made. */
+static inline bool pipeline_known(const Gpu *const g, const uint32_t id)
+{
+    return g->made[(id - 1) / 64] >> ((id - 1) % 64) & 1;
+}
+
+static inline void pipeline_know(Gpu *const g, const uint32_t id)
+{
+    g->made[(id - 1) / 64] |= 1ull << ((id - 1) % 64);
+}
 /* That pipeline, made if not yet: false, no memory. */
 bool pipeline_made(Gpu *g, PipelineKind k, QxBlend blend, uint32_t depth);
 #endif

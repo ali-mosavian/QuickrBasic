@@ -346,7 +346,7 @@ sub show_help ( _
     t$ = "UP/DN speed" + str$(int(speed * 100) / 100)
     t$ = t$ + "   S smooth " + on_off$(smooth)
 
-    label dst, edge%, edge%, t$, grey&, st.zoom
+    label dst, st.top, edge%, edge%, t$, grey&, st.zoom
 end sub
 
 ' The frame rate along dst's foot.
@@ -354,5 +354,5 @@ sub show_rate (byval dst as long, st as Stage, m as Meter)
     grey& = gfx.display.rgb(200, 200, 200)
     edge% = MARGIN * st.zoom
     foot% = st.h - edge% - st.text_h
-    label dst, edge%, foot%, rate_text$(m), grey&, st.zoom
+    label dst, st.foot, edge%, foot%, rate_text$(m), grey&, st.zoom
 end sub

@@ -1,5 +1,6 @@
 /* Numbers' text: PRINT's spelling and VAL's reading (num/dubl). */
 #include "num/double.h"
+#include "num/fpmath.h"
 #include "session.h"
 #include "unit.h"
 
@@ -47,6 +48,20 @@ TEST(print_rounds_once_at_64_bits)
     uint8_t t[DUBL_TXT];
     const uint32_t n = fmt(0.1 + 0.2, t); /* 0.30000000000000004: 16 digits round to .3 */
     CHECK_TEXT(t, n, " .3");
+}
+
+/* A whole SINGLE to an integer by its bits, as the FPU's fistp gives it: every whole number to
+   2^24 and past, each sign, and the halves and fractions about them, which take the fistp. */
+TEST(conversions_of_whole_singles_match_the_fpus)
+{
+    for (int32_t i = -(1 << 24) - 8; i <= (1 << 24) + 8; i++) {
+        const float f[] = {(float)i, (float)i + 0.5f, (float)i - 0.25f};
+
+        for (uint32_t k = 0; k < 3; k++)
+            CHECK(fmth_rint32(sngl_bits(f[k])) == pfpu_rint32(f[k]));
+    }
+
+    CHECK(fmth_rint32(sngl_bits(-0.0f)) == 0 && fmth_rint32(sngl_bits(3e9f)) == INT32_MIN);
 }
 
 /* A SINGLE or a DOUBLE to an integer: to the nearest, a half to even (the FPU's fistp); past the

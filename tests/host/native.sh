@@ -84,7 +84,10 @@ expect() { # the program's output has $1, $2 says which .qbx
     echo "$out" | grep -q "$1" || { echo "native: $2: got '$out'"; exit 1; }
 }
 
-pack "$D/qxtest.qbx" "$I" "dos-i386=$S"
+# another host's tag: a dos-i386 slice must be a DLL
+OTHER=macos
+[ "$TAG" != macos ] || OTHER=wasm32
+pack "$D/qxtest.qbx" "$I" "$OTHER=$S"
 expect 'Advanced feature unavailable' 'no slice for this machine'
 printf 'not a qbx\n' > "$D/qxtest.qbx"
 expect '^t.bas:1: Advanced feature unavailable' 'not a .qbx'

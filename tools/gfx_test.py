@@ -11,12 +11,15 @@ against pages, cell by cell: 32 bits' lights, tints, SOLID and ADD were the GPU'
 BLEND, the blend constant's, a level off. At 8 bits every cell but shapes, sprites and text differed: the target
 held colours, read back as the nearest index, and lights, tints, rows and blends were worked as colours. At 15 and
 16 bits every cell was up to 7 off: the target kept 8 bits a channel. A virtual Mac has no GPU: --gpu compares
-nothing there."""
+nothing there. --card CARD [--machine M] [--set NAME=VALUE]... [--shot FILE] [DEPTH...]: GPU_SCENE drawn by the DOS
+build on 86Box's 3D card, its driver's, in M's VM (bench.py's MACHINES; the Pentium 100's), against the Mac app's
+pages, cell by cell, as --gpu is; the card's screenshot kept in FILE. A Banshee's overlay, its CLUT bypassed, showed 565 with zeros below: flat colours up to 7 off."""
 
 import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -229,7 +232,8 @@ print sum&
 # affine, in perspective; by depth; sprites lit, tinted; shapes lit and tinted; SOLID; BLEND and
 # ADD, shapes and sprites; SMOOTH; palette rows (8 bits); text; a surface drawn into, then drawn;
 # a surface drawn into, its pixels read back and drawn as colours, two indices of one colour among
-# them. {depth}, {bytes} a pixel, {spread} a colour's step. The frame is drawn once, then shown.
+# them, then row 0 put back. {depth}, {bytes} a pixel, {spread} a colour's step. The frame is drawn once,
+# then shown.
 GPU_CELLS = (
     "shapes", "sprites", "turned", "polys", "depth", "lit", "tinted", "lit shapes",
     "solid", "blend", "add", "smooth", "rows", "text, tiles", "drawn into", "read back",
@@ -239,6 +243,15 @@ GPU_LOOSE = ("turned", "polys", "depth", "smooth")
 # Cells the GPU's own blending draws, by depth: the most a channel may be off. 32 bits: the blend constant's float
 # mix, a level. 15 and 16 bits: the mix is not narrowed after, each layer up to a 5-bit step off: told, not failed.
 GPU_NEAR = {("blend", 32): 1} | {(name, depth): 255 for name in ("blend", "add") for depth in (15, 16)}
+# A 3D card's, besides: its texels are ARGB1555, green a bit short, and it multiplies texel by colour
+# truncating, a 5-bit step; a line a pixel wide has its corners at 1/16 pixel, each emulator sampling its own way.
+CARD_NEAR = 8
+CARD_LOOSE = ("shapes",)
+# A card's cells of flat colours: exact, as it shows 565 widened as gfx widens it; not at 8 bits, where the VGA
+# shows the palette at 6 bits a channel.
+CARD_EXACT = ("lit shapes", "solid", "rows")
+# A card's blends at 8 bits mix colours, where software's take the palette's nearest: told, not failed.
+CARD_NEAR_AT = {(name, 8): 255 for name in ("blend", "add")}
 GPU_SCENE = """import gfx.display, gfx.draw, gfx.surface
 from gfx.draw import Vec2, Vertex
 canvas& = gfx.display.open(640, 480, {depth}, 0)
@@ -404,6 +417,7 @@ e& = gfx.surface.new(16, 12)
 if {depth} = 8 then
     dim same&(255)
     gfx.display.get_palette 0, same&()
+    was& = same&(201)
     same&(201) = same&(200)
     gfx.display.set_palette 0, same&()
 end if
@@ -418,6 +432,11 @@ for y = 0 to 11
         gfx.draw.rect c&, x * 9, y * 9, x * 9 + 8, y * 9 + 8, v&, gfx.draw.FILL
     next
 next
+' row 0 as the cells were drawn in it: a card holds the colours drawn
+if {depth} = 8 then
+    same&(201) = was&
+    gfx.display.set_palette 0, same&()
+end if
 gfx.display.flip
 do
     gfx.display.flip
@@ -480,10 +499,107 @@ def gpu_shot(depth: int, how: str) -> tuple[int, bytes]:
     return int(head.split()[1]), pixels
 
 
-def gpu_parity(depth: int) -> list[tuple[str, int, int]]:
-    """Each GPU_CELLS cell: the pixels the GPU drew other than pages did, and the most a channel was off."""
+CARD_SHOT_MS = 300000  # emulated: the most the scene is given to be drawn
+CARD_DRAWN = "\x04"  # written to port 0xE9 once the scene is drawn and shown
+
+
+def card_scene(depth: int) -> str:
+    """GPU_SCENE at depth as a card draws it: CARD_DRAWN said once it is shown."""
+    scene = GPU_SCENE.format(depth=depth, bytes=(depth + 7) // 8, spread=1 if depth == 8 else 40503)
+    loop = "do\n    gfx.display.flip\nloop\n"
+    assert scene.count(loop) == 1, "the scene's last loop not found once"
+    return scene.replace(loop, f"out &HE9, {ord(CARD_DRAWN)}\n{loop}")
+
+
+def most_off(name: str, depth: int, card: bool) -> int:
+    """The most a channel of cell name may be off at depth, drawn by the Mac's GPU or a card."""
+    if not card:
+        return GPU_NEAR.get((name, depth), 0)
+    if name in CARD_EXACT and depth != 8:
+        return 0
+    return max(GPU_NEAR.get((name, depth), 0), CARD_NEAR_AT.get((name, depth), CARD_NEAR))
+
+
+def card_vm(card: str, machine: str | None = None) -> Path:
+    """The VM card is on: machine's, the Pentium 100's when none."""
+    import bench
+
+    return bench.HL86_VMS / bench.card_vm(card, machine)
+
+
+def card_shot(
+    card: str, depth: int, sets: tuple[str, ...] = (), keep: str = "", machine: str | None = None
+) -> tuple[int, bytes]:
+    """GPU_SCENE drawn by the DOS build on 86Box's card, through lib/drivers/: its width and RGB rows,
+    the emulator's screenshot once CARD_SHOT_MS have run. sets: NAME=VALUE, in DOS's environment; keep: a
+    file the screenshot is copied to, a PPM."""
+    import bench
+
+    hl86 = bench.hl86_module()
+    vm = card_vm(card, machine)
+    image, built = vm / "c.img", dosrun.COM.parent
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp)
+        qb = d / "QB"
+        (qb / "LIB" / "DRIVERS").mkdir(parents=True)
+        for name in ("basic32.exe", "DOS32A.EXE", "lib/gfx.qbx", *(str(f.relative_to(built)) for f in
+                                                                     (built / "lib/drivers").glob("*.DRV"))):
+            (qb / name.upper()).write_bytes((built / name).read_bytes())
+        (qb / "SCENE.BAS").write_text(card_scene(depth))
+        bat = d / "AUTOEXEC.BAT"
+        bat.write_bytes("".join(f"{n}\r\n" for n in ("@ECHO OFF", *(f"SET {v}" for v in sets), "CD \\QB",
+                                                    "BASIC32 SCENE.BAS")).encode())
+        was = hl86.dos_get(image, "AUTOEXEC.BAT")
+        bench.mtools("mdeltree", image, "::QB", check=False)
+        bench.mtools("mcopy", image, "-s", "-o", str(qb), "::")
+        hl86.dos_put(image, bat, "AUTOEXEC.BAT")
+        shot = d / "shot.ppm"
+        try:
+            proc = hl86.launch(bench.HL86 / "build/src/86Box-headless", vm, bench.HL86_ROMS, d / "s",
+                               unthrottled=True)
+            try:
+                with hl86.Client(d / "s", timeout=30.0) as c:
+                    said = ""
+                    while CARD_DRAWN not in said:
+                        ms = int(c.status()["emu_ms"])
+                        assert ms < CARD_SHOT_MS, f"the scene not drawn in {ms} emulated ms: {said[-400:]}"
+                        if "Press F1 to continue" in c.screen_text():
+                            c.keys(keys=["F1"])
+                        said += c.debug_out()
+                        time.sleep(0.2)
+                    c.screenshot(shot)
+                    print(f"  drawn by {ms} emulated ms")
+                    if said := (said + c.debug_out()).replace(CARD_DRAWN, ""):
+                        print(said)
+                    c.quit()
+                proc.wait(timeout=60)  # killed sooner, it leaves the VM's CMOS empty
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+        finally:
+            bat.write_bytes(was)
+            hl86.dos_put(image, bat, "AUTOEXEC.BAT")
+            bench.mtools("mdeltree", image, "::QB", check=False)
+        if keep:
+            Path(keep).write_bytes(shot.read_bytes())
+        head, pixels = ppm(shot.read_bytes())
+    return head, pixels
+
+
+def ppm(data: bytes) -> tuple[int, bytes]:
+    """A binary PPM's width and RGB rows."""
+    magic, w, h, top, pixels = data.split(maxsplit=4)
+    assert magic == b"P6" and top == b"255", "not an 8-bit PPM"
+    return int(w), pixels[: int(w) * int(h) * 3]
+
+
+def gpu_parity(
+    depth: int, card: str = "", sets: tuple[str, ...] = (), keep: str = "", machine: str | None = None
+) -> list[tuple[str, int, int]]:
+    """Each GPU_CELLS cell: the pixels the GPU drew other than pages did, and the most a channel was off;
+    the GPU the Mac app's, or 86Box's card's, sets in DOS's environment."""
     w, soft = gpu_shot(depth, "soft")
-    _, gpu = gpu_shot(depth, "gpu")
+    _, gpu = card_shot(card, depth, sets, keep, machine) if card else gpu_shot(depth, "gpu")
     out = []
     for k, name in enumerate(GPU_CELLS):
         x0, y0 = k % 4 * 160, k // 4 * 120
@@ -504,19 +620,32 @@ def gfx_lib() -> dict[str, bytes]:
 
 
 if __name__ == "__main__":
-    if sys.argv[1:2] == ["--gpu"]:
+    if sys.argv[1:2] in (["--gpu"], ["--card"]):
         from mac_test import virtual
 
-        if virtual():
+        card = sys.argv.pop(2) if sys.argv[1] == "--card" else ""
+        sets = []
+        keep = ""
+        machine = None
+        while sys.argv[2:3] in (["--set"], ["--shot"], ["--machine"]):
+            if sys.argv[2] == "--shot":
+                keep = sys.argv.pop(3)
+            elif sys.argv[2] == "--machine":
+                machine = sys.argv.pop(3)
+            else:
+                sets.append(sys.argv.pop(3))
+            sys.argv.pop(2)
+        if not card and virtual():
             print("a virtual Mac, no GPU: GPU_SCENE not compared")
             sys.exit()
         wrong = []
         for depth in [int(d) for d in sys.argv[2:]] or [8, 15, 16, 32]:
             print(f"{depth} bits: pixels the GPU drew other than pages, the most a channel was off")
-            for name, n, most in gpu_parity(depth):
+            for name, n, most in gpu_parity(depth, card, tuple(sets), keep, machine):
                 print(f"  {name:12}{n:7}{most:5}")
-                near = most <= GPU_NEAR.get((name, depth), 0)
-                wrong += [f"{name} at {depth} bits"] if not near and name not in GPU_LOOSE else []
+                near = most <= most_off(name, depth, bool(card))
+                loose = GPU_LOOSE + (CARD_LOOSE if card else ())
+                wrong += [f"{name} at {depth} bits"] if not near and name not in loose else []
         sys.exit(f"GPU differs: {', '.join(wrong)}" if wrong else None)
     if sys.argv[1:2] == ["--sums"]:
         root = Path(sys.argv[2]) if len(sys.argv) > 2 else dosrun.ROOT
