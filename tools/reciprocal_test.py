@@ -16,15 +16,17 @@ DIVIDED = {
     "_op_draw": "build/c/obj/plat/dos32/accel/player.obj",
     "_tdfx_corners": "build/c/drivers/3dfx/setup.obj",
 }
-ONE = re.compile(r"\bcmpl\s+\$0x3f800000,")  # 1.0f's bits compared
+ONE = re.compile(r"\bcmpl?\s+\$0x3f800000,")  # 1.0f's bits compared; GNU drops the l for a register
 
 
 def main() -> int:
     subprocess.run(["make", *sorted(set(DIVIDED.values()))], cwd=ROOT, check=True, capture_output=True)
     version = subprocess.run([OBJDUMP, "--version"], capture_output=True, text=True).stdout
-    coff = ["-b", "pe-i386"] if "GNU" in version else []  # GNU's cannot tell COFF's flavours apart
+    gnu = "GNU" in version
+    coff = ["-b", "pe-i386"] if gnu else []  # GNU's cannot tell COFF's flavours apart
     for fn, obj in DIVIDED.items():
-        listing = subprocess.run([OBJDUMP, *coff, "-d", "--no-show-raw-insn", f"--disassemble-symbols={fn}", obj],
+        one = f"--disassemble={fn}" if gnu else f"--disassemble-symbols={fn}"
+        listing = subprocess.run([OBJDUMP, *coff, "-d", "--no-show-raw-insn", one, obj],
                                  cwd=ROOT, check=True, capture_output=True, text=True).stdout
         assert f"<{fn}>:" in listing, f"{fn} not in {obj}"
         assert ONE.search(listing), f"{fn} divides where w or z is 1: no compare with 1.0f's bits"
