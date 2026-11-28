@@ -14,7 +14,10 @@
  * drawn into is ahead on the GPU (drawn) until gpu_sync reads it back. A draw reads its texture and
  * the palette. A texture keeps the rows the CPU wrote since it was sent (gpu_wrote), so it sends
  * only those. A root drawn into with depth has a depth texture too (gpu_depth), made on that first
- * draw, which every pass into it keeps after.
+ * draw, which every pass into it keeps after. A MIPMAP draw's source has a texture of its own with
+ * its root's levels (core/levels.h), never a page: its view's levels, made on the CPU from its
+ * texels, go in each level at the view's place halved, made again when what they were made from
+ * changed. A host before minor 7 has none.
  *
  * A draw that reads what is behind its pixels (GpuCall.behind) reads a copy of its target, made
  * before it when the target changed under it since the last: drawn in, by a call before this one,
@@ -43,16 +46,26 @@ enum { GPU_MAP_ROWS = PAL_CELLS / 4 / PAL_COLOURS, GPU_PALETTE_ROWS = PAL_ROWS +
 
 /* The boxes drawn in since the copy kept apart; past them, it is made again before the next read.
    The pipelines' ids, a bit of Gpu.made each. */
-enum { GPU_DIRTY = 16, GPU_PIPELINES = 384 };
+enum { GPU_DIRTY = 16, GPU_PIPELINES = 768 };
 
 /* A box of a target's pixels, its edges at half pixels: none when x0 is not under x1. */
 typedef struct {
     float x0, y0, x1, y1;
 } GpuBox;
 
+/* What a texture's levels after its first were made from: a view of its root at a version,
+   keyed or not, and row 0's changes, and 1, when through it (0 not). */
+typedef struct {
+    bool held, keyed;
+    Rect at;
+    uint32_t version, row0;
+} GpuLevels;
+
 typedef struct {
     uint32_t handle, version;
     QxTextureFormat format; /* 0, none made */
+    uint8_t levels;         /* its texture's: 0 or 1, the one */
+    GpuLevels levelled;     /* what its levels after the first were made from */
     uint32_t page;          /* its page's texture; 0 its own */
     uint16_t x, y;          /* its place in the page */
     int32_t top, bottom;    /* the rows the CPU wrote since version was sent */
@@ -69,13 +82,19 @@ typedef struct {
 } GpuPage;
 
 /* Where a source's root is: its texture, its place in it, whether it holds indices and them in
-   alpha, and its depth texture (0 none). */
+   alpha, its depth texture (0 none), and its view's levels there (1, its own alone). */
 typedef struct {
     uint32_t id;
     uint16_t x, y;
     bool indexed, alpha;
     uint32_t depth;
+    uint32_t levels;
 } GpuSource;
+
+/* What gpu_texture is asked for: a root drawn into, RGBA and ahead of the CPU till read back; on
+   a fixed host a direct root's indices (matched); a view's levels (MIPMAP), keyed or not, its
+   root read back first. */
+enum { GPU_INTO = 1, GPU_MATCHED = 2, GPU_MIPMAP = 4, GPU_KEYED = 8 };
 
 /* A lookup the host holds (fixed): what its words were made from, into an 8-bit target; given. */
 typedef struct {
@@ -118,6 +137,7 @@ typedef struct {
     uint8_t *page;   /* the canvas's pixels, read back */
     uint32_t shader; /* the language (QxShader) */
     bool fixed;      /* it is FIXED: none (fixed.h) */
+    bool mipmaps;    /* it takes a texture's levels: minor 7 */
     Palette *pal;    /* gfx's, for a fixed host's colours */
     uint64_t made[GPU_PIPELINES / 64]; /* the pipelines made, a bit each */
     GpuCount count;                    /* since gpu_counted */
@@ -141,6 +161,7 @@ typedef struct {
     uint32_t tint;
     uint32_t paint; /* a texture's colour: the tint, or SOLID's */
     bool solid;
+    bool mipmap; /* its textures read their levels */
     bool behind; /* its pixels read what is behind them */
 } GpuCall;
 
@@ -148,10 +169,10 @@ typedef struct {
    gave: false, no memory. */
 bool gpu_open(Gpu *g, const QxScreen *s, bool eight, Palette *pal);
 void gpu_close(Gpu *g);
-/* p's root on the GPU, made and sent as it needs it; into, drawn into: RGBA, and ahead of the CPU
-   till read back. On a fixed host an 8-bit root is INDEX, and a direct one too when matched: its
-   texels the indices nearest them. False, no memory. */
-bool gpu_texture(Gpu *g, const Source *p, bool into, bool matched, GpuSource *out);
+/* p's root on the GPU, made and sent as it needs it, as want asks (GPU_'s). On a fixed host an
+   8-bit root is INDEX, and a direct one too when matched: its texels the indices nearest them.
+   False, no memory. */
+bool gpu_texture(Gpu *g, const Source *p, uint32_t want, GpuSource *out);
 /* p's root's depth texture, made, all 0, if it had none (*fresh then): false, no memory. */
 bool gpu_depth(Gpu *g, const Source *p, uint32_t *id, bool *fresh);
 /* Rows top to bottom of the root h written by the CPU. */

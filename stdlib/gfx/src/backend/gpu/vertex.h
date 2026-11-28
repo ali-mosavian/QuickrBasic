@@ -20,6 +20,7 @@ enum {
     GPU_STAGE_FIFTEEN = 4096, /* into a 15-bit target: 5 bits a channel kept */
     GPU_STAGE_SIXTEEN = 8192, /* into a 16-bit target: 5 bits a channel kept, green's 6 */
     GPU_STAGE_TILE = 16384,   /* u and v repeat across the rectangle (px_tiles) */
+    GPU_STAGE_MIPMAP = 32768, /* read from the level nearest the texels a pixel steps */
 };
 
 /* x, y a pixel's centre at whole numbers, a fixed host's at halves; z its depth, 1/z of a corner's z (0 far, as gfx's

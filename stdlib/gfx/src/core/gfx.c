@@ -163,7 +163,10 @@ bool gx_draw(
     Place *const where
 )
 {
-    return gx_check(g, dst, c, allowed, where) && gx_begin(g, dst, c, where);
+    /* MIPMAP's levels are made from the source's texels: read back first */
+    return gx_check(g, dst, c, allowed, where) &&
+           (!(c->flags & GFX_DRAW_MIPMAP) || !c->source || g->backend->sync(g, c->source)) &&
+           gx_begin(g, dst, c, where);
 }
 
 void gfx_init(void) {}

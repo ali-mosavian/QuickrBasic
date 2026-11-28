@@ -206,9 +206,9 @@ static bool aim(
 
     k->held = kept;
 
-    if (!(kept || gpu_texture(gp, into, true, false, &k->target)) ||
+    if (!(kept || gpu_texture(gp, into, GPU_INTO, &k->target)) ||
         (deep && !gpu_depth(gp, into, &k->target.depth, fresh)) ||
-        !(kept || gpu_texture(gp, &white, false, false, &k->blank)))
+        !(kept || gpu_texture(gp, &white, 0, &k->blank)))
         return false;
 
     k->held = true;
@@ -279,6 +279,7 @@ static bool begin(Gx *const g, const Command *const c, const Source *const into,
         .lut = lut,
         .tint = style->tint,
         .solid = c->flags & GFX_DRAW_SOLID,
+        .mipmap = c->flags & GFX_DRAW_MIPMAP,
         .paint = eight ? spread(index) : paint,
         .behind = shaded && (mix || add),
     };
@@ -292,8 +293,11 @@ static bool source(Gx *const g, const Source *const p)
     GpuVertex *const k = &t->template;
     GpuSource from;
 
+    const uint32_t want = (t->eight && !t->solid ? GPU_MATCHED : 0) | (t->mipmap ? GPU_MIPMAP : 0) |
+                          (k->stages & GPU_STAGE_KEYED ? GPU_KEYED : 0);
+
     /* at 8 bits, a colour drawn matched by the map: on a fixed host, matched as it is sent */
-    if (!gpu_texture(gpu(g), p, false, t->eight && !t->solid, &from) ||
+    if (!gpu_texture(gpu(g), p, want, &from) ||
         (t->eight && (!from.indexed || k->stages & GPU_STAGE_SMOOTH) &&
          !gpu_palette(gpu(g), &g->palette, true)))
         return gx_fail(ERR_MEMORY);
@@ -308,7 +312,8 @@ static bool source(Gx *const g, const Source *const p)
     k->g = (uint8_t)(rgb >> 8);
     k->b = (uint8_t)rgb;
     k->stages = (uint16_t)((k->stages & CALL_STAGES) | (from.indexed ? GPU_STAGE_INDEXED : 0) |
-                           (from.alpha ? GPU_STAGE_ALPHA : 0) | (t->solid ? GPU_STAGE_SOLID : 0));
+                           (from.alpha ? GPU_STAGE_ALPHA : 0) | (t->solid ? GPU_STAGE_SOLID : 0) |
+                           (from.levels > 1 ? GPU_STAGE_MIPMAP : 0));
     return true;
 }
 

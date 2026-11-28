@@ -31,8 +31,8 @@
 #endif
 
 /* Minor 4 adds the GPU list's depth (qxlist.h); minor 5 its fixed pipeline (QX_SHADER_FIXED);
-   minor 6 a fixed pipeline's INDEX targets, LOOKUP and COLOURS. */
-enum { QX_ABI = 1, QX_MINOR = 6 };
+   minor 6 a fixed pipeline's INDEX targets, LOOKUP and COLOURS; minor 7 a texture's levels. */
+enum { QX_ABI = 1, QX_MINOR = 7 };
 
 typedef struct QxCall QxCall;
 typedef void QX_CALL QxFn(QxCall *c);

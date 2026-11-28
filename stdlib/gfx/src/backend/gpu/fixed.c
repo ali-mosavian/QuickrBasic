@@ -12,10 +12,11 @@ static uint32_t kind_of(const uint32_t stages)
     const uint32_t texel = !(stages & GPU_STAGE_SOLID), key = (stages & GPU_STAGE_KEYED) != 0;
     const uint32_t linear = (stages & GPU_STAGE_SMOOTH) != 0;
     const uint32_t wrap = stages & GPU_STAGE_TILE ? 2 : (stages & GPU_STAGE_WRAP) != 0;
-    return texel + 2 * (key + 2 * (linear + 2 * wrap));
+    const uint32_t mipmap = (stages & GPU_STAGE_MIPMAP) != 0;
+    return texel + 2 * (key + 2 * (linear + 2 * (mipmap + 2 * wrap)));
 }
 
-static_assert(2 * 2 * 2 * WRAPS * PIPELINE_BLENDS * PIPELINE_DEPTHS <= GPU_PIPELINES);
+static_assert(2 * 2 * 2 * 2 * WRAPS * PIPELINE_BLENDS * PIPELINE_DEPTHS <= GPU_PIPELINES);
 
 /* The pipeline for stages with blend and depth, made if not yet, its id to *id: false, no memory. */
 static bool made(
@@ -55,7 +56,8 @@ static bool made(
     args[QX_FIXED_FLAGS] = (stages & GPU_STAGE_KEYED ? QX_FIXED_KEY : 0) |
                            (stages & GPU_STAGE_SMOOTH ? QX_FIXED_LINEAR : 0) |
                            (tile || stages & GPU_STAGE_WRAP ? QX_FIXED_WRAP_U : 0) |
-                           (tile ? QX_FIXED_WRAP_V : 0);
+                           (tile ? QX_FIXED_WRAP_V : 0) |
+                           (stages & GPU_STAGE_MIPMAP ? QX_FIXED_MIPMAP : 0);
     mem_copy(args + HEAD, attributes, sizeof attributes);
 
     if (!list_op(&g->list, QX_LIST_PIPELINE, args, HEAD + ATTRIBUTES * ATTRIBUTE))

@@ -1236,3 +1236,154 @@ TEST(gfx_gpu_draws_a_fixed_hosts_circle_as_its_rows)
     CHECK(ops(HEAD "TTUPNCLDSE") && arg(QX_LIST_DRAW, 0, 2) == LIST_VERTICES);
     CHECK(arg(QX_LIST_DRAW, 0, 5) == 5 * 6 && covered(0, disc));
 }
+
+/* The UPLOADs of the last list into texture id's level. */
+static uint32_t uploads_to(const uint32_t id, const uint32_t level)
+{
+    uint32_t n = 0;
+
+    QxListEntry e;
+
+    for (uint32_t at = 0; qx_list_next(words, nwords, &at, &e);)
+        n += e.op == QX_LIST_UPLOAD && e.arg[0] == id && (e.args > 8 ? e.arg[8] : 0) == level;
+
+    return n;
+}
+
+/* The last list's TEXTURE making id: its levels, 1 when not given; 0, none. */
+static uint32_t levels_made(const uint32_t id)
+{
+    QxListEntry e;
+
+    for (uint32_t at = 0; qx_list_next(words, nwords, &at, &e);)
+        if (e.op == QX_LIST_TEXTURE && e.arg[0] == id)
+            return e.args > 4 ? e.arg[4] : 1;
+
+    return 0;
+}
+
+/* The k-th UPLOAD into id's level: its word i. */
+static uint32_t upload_word(const uint32_t id, const uint32_t level, const uint32_t i)
+{
+    QxListEntry e;
+
+    for (uint32_t at = 0; qx_list_next(words, nwords, &at, &e);)
+        if (e.op == QX_LIST_UPLOAD && e.arg[0] == id && (e.args > 8 ? e.arg[8] : 0) == level)
+            return e.arg[i - 1];
+
+    return 0xDEAD;
+}
+
+/* A quad over 4 by 4 pixels drawn from s's w by h texels, with flags. */
+static void small_quad(
+    Session *const S,
+    const int32_t s,
+    const float w,
+    const float h,
+    const int32_t flags
+)
+{
+    gfx_draw_vertex p[4] = {{0, 0, 1, 0, 0}, {4, 0, 1, w, 0}, {4, 4, 1, w, h}, {0, 4, 1, 0, h}};
+
+    QxArray a = gfx_array(p, 4, sizeof *p);
+    GPU_CALL("draw.poly", I(SURF_SCREEN), ARRAY(&a), I(0), I(4), I(s), I(0), I(flags));
+}
+
+/* A MIPMAP texture is its own, never a page's, made with its levels, 16 by 16 three; each after
+   the first sent into its level, and the shader told. Drawn again nothing is sent; written, its
+   rows and its levels again. Without MIPMAP the same root went to a page, levels unread. */
+TEST(gfx_gpu_sends_a_textures_levels)
+{
+    screen(S, 8, 8, 32);
+    const int32_t s = GPU_CALL("surface.new", I(16), I(16)).result.i;
+    const uint32_t id = (uint32_t)s;
+    uint32_t row[16] = {0xFF0000};
+
+    QxArray a = gfx_array(row, sizeof row, 1);
+    GPU_CALL("surface.write", I(s), I(0), I(0), I(16), I(1), ARRAY(&a));
+    small_quad(S, s, 16, 16, GFX_DRAW_MIPMAP);
+    GPU_CALL("display.flip");
+    CHECK(levels_made(id) == 3 && arg(QX_LIST_DRAW, 0, 7) == id);
+    CHECK(uploads_to(id, 0) == 1 && uploads_to(id, 1) == 1 && uploads_to(id, 2) == 1);
+    CHECK(upload_word(id, 1, 4) == 8 && upload_word(id, 1, 5) == 8);
+    CHECK(upload_word(id, 2, 4) == 4 && upload_word(id, 2, 5) == 4);
+    CHECK(vertices[0].stages & GPU_STAGE_MIPMAP);
+
+    small_quad(S, s, 16, 16, GFX_DRAW_MIPMAP);
+    GPU_CALL("display.flip");
+    CHECK(!uploads_to(id, 0) && !uploads_to(id, 1) && !uploads_to(id, 2));
+
+    GPU_CALL("surface.write", I(s), I(0), I(5), I(16), I(1), ARRAY(&a));
+    small_quad(S, s, 16, 16, GFX_DRAW_MIPMAP);
+    GPU_CALL("display.flip");
+    CHECK(uploads_to(id, 0) == 1 && upload_word(id, 0, 3) == 5);
+    CHECK(uploads_to(id, 1) == 1 && uploads_to(id, 2) == 1);
+
+    const int32_t t = GPU_CALL("surface.new", I(16), I(16)).result.i;
+    small_quad(S, t, 16, 16, 0);
+    GPU_CALL("display.flip");
+    CHECK(!levels_made((uint32_t)t) && !(vertices[0].stages & GPU_STAGE_MIPMAP));
+}
+
+/* A view's levels go at its place halved in its root's: its levels, not its root's. */
+TEST(gfx_gpu_sends_a_views_levels_at_its_place)
+{
+    screen(S, 8, 8, 32);
+    const int32_t s = GPU_CALL("surface.new", I(16), I(16)).result.i;
+    const int32_t v = GPU_CALL("surface.new_view", I(s), I(4), I(8), I(8), I(8)).result.i;
+
+    small_quad(S, v, 8, 8, GFX_DRAW_MIPMAP);
+    GPU_CALL("display.flip");
+    CHECK(levels_made((uint32_t)s) == 3);
+    CHECK(uploads_to((uint32_t)s, 1) == 1 && !uploads_to((uint32_t)s, 2));
+    CHECK(upload_word((uint32_t)s, 1, 2) == 2 && upload_word((uint32_t)s, 1, 3) == 4);
+    CHECK(upload_word((uint32_t)s, 1, 4) == 4 && upload_word((uint32_t)s, 1, 5) == 4);
+}
+
+/* A root drawn into is read back before its levels are made from it, and its texture made again
+   with them: made from the CPU's texels unread, its levels were of what it held before. */
+TEST(gfx_gpu_reads_back_a_root_before_its_levels)
+{
+    screen(S, 8, 8, 32);
+    const int32_t s = GPU_CALL("surface.new", I(8), I(8)).result.i;
+
+    GPU_CALL("draw.clear", I(s), I(0x0000FF));
+    GPU_CALL("display.flip");
+    memset(pixels, 0xFF, sizeof pixels);
+    small_quad(S, s, 8, 8, GFX_DRAW_MIPMAP);
+    GPU_CALL("display.flip");
+    CHECK(GPU_CALL("surface.point", I(s), I(3), I(3)).result.i == 0xFFFFFF);
+    CHECK(levels_made((uint32_t)s) == 2 && uploads_to((uint32_t)s, 1) == 1);
+    CHECK(upload_word((uint32_t)s, 1, 4) == 4);
+}
+
+/* A host before minor 7 is given no levels: it would put a level's texels in level 0. */
+TEST(gfx_gpu_gives_levels_from_minor_7)
+{
+    host_in(S, QX_SHADER_MSL, false);
+    fake.minor = 6;
+    CHECK(!GPU_CALL("display.open", I(8), I(8), I(32), I(0)).error);
+    const int32_t s = GPU_CALL("surface.new", I(16), I(16)).result.i;
+
+    small_quad(S, s, 16, 16, GFX_DRAW_MIPMAP);
+    GPU_CALL("display.flip");
+    CHECK(!levels_made((uint32_t)s) && !uploads_to((uint32_t)s, 1));
+    CHECK(!(vertices[0].stages & GPU_STAGE_MIPMAP));
+}
+
+/* A fixed host's MIPMAP draw is its pipeline's flag, its texture made with levels. */
+TEST(gfx_gpu_asks_a_fixed_host_for_its_level)
+{
+    enum { FLAGS = QX_FIXED_FLAGS + 1 };
+
+    fixed_screen(S, 8, 8, 16);
+    const int32_t s = GPU_CALL("surface.new", I(16), I(16)).result.i;
+
+    small_quad(S, s, 16, 16, GFX_DRAW_MIPMAP);
+    GPU_CALL("display.flip");
+    CHECK(levels_made((uint32_t)s) == 3 && uploads_to((uint32_t)s, 2) == 1);
+    CHECK(
+        arg(QX_LIST_PIPELINE, 0, FLAGS) ==
+        (QX_FIXED_KEY | QX_FIXED_WRAP_U | QX_FIXED_WRAP_V | QX_FIXED_MIPMAP)
+    );
+}

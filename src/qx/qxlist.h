@@ -12,11 +12,11 @@
  * - BUFFER id, bytes, kind: at least bytes of vertices or of 32-bit indices; made, or made again,
  *   when there is none that large, its bytes then undefined.
  * - WRITE id, bytes, pointer: the buffer's first bytes; its others undefined after.
- * - TEXTURE id, w, h, format: made, every byte 0. An RGBA one can be drawn into; a DEPTH one is
- *   a pass's depth target.
+ * - TEXTURE id, w, h, format, levels: made, every byte 0. An RGBA one can be drawn into; a DEPTH
+ *   one is a pass's depth target. Levels (minor 7), 1 when not given: level k is w >> k by h >> k.
  * - FREE id: the texture.
- * - UPLOAD id, x, y, w, h, pitch, pointer: h rows of w texels of the texture's format, pitch bytes
- *   each, into it.
+ * - UPLOAD id, x, y, w, h, pitch, pointer, level: h rows of w texels of the texture's format,
+ *   pitch bytes each, into its level (minor 7), 0 when not given; x, y that level's.
  * - PIPELINE id, blend, stride, samplers, vertex code, fragment code, attributes: how a DRAW with
  *   it draws. Code is three words, its bytes then a pointer, in the language gfx_open gave
  *   (QxScreen.shader); the vertex code's uniform block is binding 0, the fragment code's
@@ -113,10 +113,17 @@ typedef enum : uint8_t { QX_DEPTH_TEST = 1, QX_DEPTH_WRITE = 2 } QxDepth;
    times it; MASK, the colour, its alpha the texel's times its own. Its flags: KEY, drawn where the
    texel's alpha is at least a half; LINEAR, the four texels round the point mixed, else the one
    under it; WRAP_U, WRAP_V, texels repeat across the rectangle, else the texture's edge's are
-   kept past it. */
+   kept past it; MIPMAP (minor 7), read from the texture's level nearest the texels a pixel
+   steps, LINEAR within it. */
 typedef enum : uint8_t { QX_FIXED_COLOUR = 1, QX_FIXED_TEXEL, QX_FIXED_MASK } QxFixedSource;
 
-enum { QX_FIXED_KEY = 1, QX_FIXED_LINEAR = 2, QX_FIXED_WRAP_U = 4, QX_FIXED_WRAP_V = 8 };
+enum {
+    QX_FIXED_KEY = 1,
+    QX_FIXED_LINEAR = 2,
+    QX_FIXED_WRAP_U = 4,
+    QX_FIXED_WRAP_V = 8,
+    QX_FIXED_MIPMAP = 16,
+};
 
 /* Their places in a PIPELINE's arguments, and its attributes' locations. */
 enum { QX_FIXED_SOURCE = QX_PIPELINE_CODE, QX_FIXED_FLAGS };

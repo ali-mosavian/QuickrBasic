@@ -4,6 +4,7 @@
 #include "backend/gpu/atlas.h"
 #include "backend/gpu/fixed.h"
 #include "backend/gpu/pipelines.h"
+#include "core/levels.h"
 #include "core/mem.h"
 
 enum { RGBA = 4, OPAQUE = 0xFF, HALF = 0x80 };
@@ -117,6 +118,7 @@ bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight, Palette *
 
     g->shader = s->shader;
     g->fixed = s->shader == QX_SHADER_FIXED;
+    g->mipmaps = qx_host->minor >= 7;
     g->pal = pal;
     mem_fill(g->made, 0, sizeof g->made);
 
@@ -178,19 +180,60 @@ static QxTextureFormat wanted(
     return index ? QX_TEXTURE_INDEX : QX_TEXTURE_RGBA;
 }
 
-/* gpu_texture's work, the epoch moved where its entry changes. */
-static bool textured(
+/* p's view's levels after its first, made from its texels, keyed or not, each into e's texture's
+   level at the view's place halved: false, no memory. */
+static bool sent_levels(
     Gpu *const g,
+    const GpuTexture *const e,
     const Source *const p,
-    const bool into,
-    const bool matched,
-    GpuSource *const out
+    const bool keyed
 )
+{
+    const Pixels view = source_pixels(p);
+    Levels l;
+
+    if (!levels_make(&l, &view, keyed, g->pal->rows[0]))
+        return false;
+
+    bool sent = true;
+
+    for (uint32_t k = 1; sent && k < l.n; k++) {
+        const Pixels *const at = &l.at[k];
+        uint32_t pitch;
+        uint32_t args[9] = {
+            p->texture,
+            (uint32_t)p->at.x >> k,
+            (uint32_t)p->at.y >> k,
+            (uint32_t)at->w,
+            (uint32_t)at->h,
+        };
+
+        const uint8_t *const bytes = texels(&g->list, at, e->format, g->pal, &pitch);
+
+        args[5] = pitch;
+        list_pointer(args + 6, bytes);
+        args[8] = k;
+        sent = bytes && list_op(&g->list, QX_LIST_UPLOAD, args, 9);
+    }
+
+    levels_done(&l);
+    return sent;
+}
+
+static bool same_levels(const GpuLevels a, const GpuLevels b)
+{
+    return a.held == b.held && a.keyed == b.keyed && a.at.x == b.at.x && a.at.y == b.at.y &&
+           a.at.w == b.at.w && a.at.h == b.at.h && a.version == b.version && a.row0 == b.row0;
+}
+
+/* gpu_texture's work, the epoch moved where its entry changes. */
+static bool textured(Gpu *const g, const Source *const p, const uint32_t ask, GpuSource *const out)
 {
     GpuTexture *const e = entry(g, p->texture);
     const uint32_t name = p->texture;
     const Pixels *const px = &p->root;
     const bool eight = px->format == PX_8, indices = eight && !g->fixed;
+    const bool into = ask & GPU_INTO, matched = ask & GPU_MATCHED;
 
     if (!e)
         return false;
@@ -202,14 +245,19 @@ static bool textured(
 
     /* a direct root drawn into is ahead on the GPU: drawn from as it is there */
     const QxTextureFormat want = e->drawn && !eight ? QX_TEXTURE_RGBA : wanted(g, p, into, matched);
+    /* levels are made from the CPU's texels: none while the GPU's are ahead */
+    const uint32_t view =
+        ask & GPU_MIPMAP && g->mipmaps && !e->drawn ? levels_of(p->at.w, p->at.h) : 1;
+    const uint32_t levels = view > 1 ? levels_of(px->w, px->h) : 1;
 
-    if (e->page && into) {
+    if (e->page && (into || levels > 1)) {
         atlas_unpack(g, e);
         e->format = 0;
     }
 
     /* a fixed host's textures are a root's own: its texture changes cost little */
-    if (!e->format && !into && !g->fixed && px->w <= GPU_PAGE / 2 && px->h <= GPU_PAGE / 2) {
+    if (!e->format && !into && levels == 1 && !g->fixed && px->w <= GPU_PAGE / 2 &&
+        px->h <= GPU_PAGE / 2) {
         if (!atlas_pack(g, e, want, (uint16_t)px->w, (uint16_t)px->h))
             return false;
 
@@ -217,17 +265,22 @@ static bool textured(
         e->version = ~p->version; /* the place may hold another's */
         e->top = 0;
         e->bottom = px->h;
-    } else if (!e->format || (want != e->format && (g->fixed || want == QX_TEXTURE_RGBA))) {
+    } else if (!e->format || (levels > 1 && e->levels != levels) ||
+               (want != e->format && (g->fixed || want == QX_TEXTURE_RGBA))) {
         const bool had = e->format;
-        const uint32_t args[] = {name, (uint32_t)px->w, (uint32_t)px->h, want};
+        /* made again in another format, it keeps its levels */
+        const uint32_t made = levels > 1 ? levels : had && e->levels ? e->levels : 1;
+        const uint32_t args[] = {name, (uint32_t)px->w, (uint32_t)px->h, want, made};
 
         if (had && !list_op(&g->list, QX_LIST_FREE, &name, 1))
             return false;
 
-        if (!list_op(&g->list, QX_LIST_TEXTURE, args, 4))
+        if (!list_op(&g->list, QX_LIST_TEXTURE, args, made > 1 ? 5 : 4))
             return false;
 
         e->format = want;
+        e->levels = (uint8_t)made;
+        e->levelled = (GpuLevels){};
         e->version = had ? ~p->version : 0;
         e->top = 0;
         e->bottom = px->h;
@@ -260,6 +313,21 @@ static bool textured(
         g->coloured = id == SURF_SCREEN ? 0 : g->coloured;
     }
 
+    const GpuLevels made = {
+        .held = true,
+        .keyed = ask & GPU_KEYED,
+        .at = p->at,
+        .version = p->version,
+        .row0 = eight || e->format == QX_TEXTURE_INDEX ? g->pal->changed[0] + 1 : 0,
+    };
+
+    if (view > 1 && !same_levels(e->levelled, made)) {
+        if (!sent_levels(g, e, p, made.keyed))
+            return false;
+
+        e->levelled = made;
+    }
+
     /* each make, match and upload leaves e's version not p's */
     g->epoch += reset || e->version != p->version || (into && !e->drawn);
 
@@ -276,20 +344,15 @@ static bool textured(
         indices || e->format == QX_TEXTURE_INDEX,
         indices && e->format == QX_TEXTURE_RGBA,
         e->depth ? depth_of(name) : 0,
+        view,
     };
 
     return true;
 }
 
-bool gpu_texture(
-    Gpu *const g,
-    const Source *const p,
-    const bool into,
-    const bool matched,
-    GpuSource *const out
-)
+bool gpu_texture(Gpu *const g, const Source *const p, const uint32_t want, GpuSource *const out)
 {
-    const bool done = textured(g, p, into, matched, out);
+    const bool done = textured(g, p, want, out);
 
     g->epoch += !done; /* its entry left part made */
     return done;

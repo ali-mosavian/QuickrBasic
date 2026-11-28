@@ -4,7 +4,7 @@
  * # How it works
  * A draw's stages become a pipeline's fixed state: SOLID, the colour alone, else the texel times
  * it; KEYED, the texel's alpha tested; SMOOTH, linear; WRAP, u repeated across the rectangle,
- * TILE, u and v. A vertex's colour is lit here: SOLID's as it is, a texel's by the tint times the
+ * TILE, u and v; MIPMAP, the host's level. A vertex's colour is lit here: SOLID's as it is, a texel's by the tint times the
  * light over 63, as the shader's lit does. A root's texture is its own, never a page's; an 8-bit
  * root's is INDEX, drawn from and into (gpu.c). An index texel draws through LOOKUP, sent here
  * when its words change: into an 8-bit target the lut's indices, else the row's colours lit and
