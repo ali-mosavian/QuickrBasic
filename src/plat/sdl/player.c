@@ -121,7 +121,13 @@ static void dropped(Table *const t, void *const item)
 
 static Texture *texture(const uint32_t id) { return find(&p.textures, id); }
 
-static SDL_GPUTexture *make(const uint32_t w, const uint32_t h, const SDL_GPUTextureFormat f)
+/* A w by h texture of format f and its levels. */
+static SDL_GPUTexture *make(
+    const uint32_t w,
+    const uint32_t h,
+    const SDL_GPUTextureFormat f,
+    const uint32_t levels
+)
 {
     const bool depth = f == SDL_GPU_TEXTUREFORMAT_D16_UNORM;
 
@@ -135,7 +141,7 @@ static SDL_GPUTexture *make(const uint32_t w, const uint32_t h, const SDL_GPUTex
             .width = w,
             .height = h,
             .layer_count_or_depth = 1,
-            .num_levels = 1,
+            .num_levels = levels,
         }
 
     );
@@ -190,10 +196,11 @@ static SDL_GPUCopyPass *copying(Pass *const s)
 }
 
 /* t, a depth target if depth, cleared to 0 by a pass of its own. */
-static void cleared(Pass *const s, SDL_GPUTexture *const t, const bool depth)
+static void cleared(Pass *const s, SDL_GPUTexture *const t, const bool depth, const uint32_t level)
 {
     const SDL_GPUColorTargetInfo colour = {
         .texture = t,
+        .mip_level = level,
         .load_op = SDL_GPU_LOADOP_CLEAR,
         .store_op = SDL_GPU_STOREOP_STORE,
     };
@@ -228,12 +235,13 @@ static void add(
     const uint32_t id,
     const uint32_t w,
     const uint32_t h,
-    const uint32_t format
+    const uint32_t format,
+    const uint32_t levels
 )
 {
     const bool depth = format == QX_TEXTURE_DEPTH;
     const uint32_t bpp = format == QX_TEXTURE_INDEX ? 1 : depth ? 2 : RGBA;
-    SDL_GPUTexture *const made = make(w, h, format_of(format));
+    SDL_GPUTexture *const made = make(w, h, format_of(format), levels);
     Texture *const t = made ? added(&p.textures, id) : nullptr;
 
     if (!t) {
@@ -243,7 +251,8 @@ static void add(
 
     *t = (Texture){id, w, h, bpp, made, depth};
 
-    cleared(s, made, depth);
+    for (uint32_t level = 0; level < levels; level++)
+        cleared(s, made, depth, level);
 }
 
 static void drop(const uint32_t id)
@@ -353,8 +362,9 @@ static void write_buffer(Pass *const s, const uint32_t id, const uint32_t bytes)
     );
 }
 
-/* The op's rows from the staging buffer into region a (x, y, w, h, pitch) of texture id. */
-static void upload(Pass *const s, const uint32_t *const a)
+/* The op's rows from the staging buffer into region a (x, y, w, h, pitch, its level) of texture
+   id. */
+static void upload(Pass *const s, const uint32_t *const a, const uint32_t level)
 {
     const Texture *const t = texture(a[0]);
 
@@ -370,6 +380,7 @@ static void upload(Pass *const s, const uint32_t *const a)
         },
         &(SDL_GPUTextureRegion){
             .texture = t->t,
+            .mip_level = level,
             .x = a[1],
             .y = a[2],
             .w = a[3],
@@ -647,7 +658,7 @@ static bool player_play(const uint32_t *const list, const uint32_t words)
             break;
 
         case QX_LIST_TEXTURE:
-            add(&s, a[0], a[1], a[2], a[3]);
+            add(&s, a[0], a[1], a[2], a[3], n > 4 ? a[4] : 1);
             break;
 
         case QX_LIST_FREE:
@@ -656,7 +667,7 @@ static bool player_play(const uint32_t *const list, const uint32_t words)
             break;
 
         case QX_LIST_UPLOAD:
-            upload(&s, a);
+            upload(&s, a, n > 8 ? a[8] : 0);
             break;
 
         case QX_LIST_PIPELINE:
@@ -781,7 +792,7 @@ static bool player_open(const uint16_t w, const uint16_t h, const uint8_t flags)
     (void)flags; /* the host waits; what it shows is kept apart */
 
     SDL_GPUCommandBuffer *const cb = SDL_AcquireGPUCommandBuffer(p.dev);
-    SDL_GPUTexture *const shown = make(w, h, SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM);
+    SDL_GPUTexture *const shown = make(w, h, SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, 1);
     Pass s = {.cb = cb};
 
     if (!cb || !shown)
@@ -789,7 +800,7 @@ static bool player_open(const uint16_t w, const uint16_t h, const uint8_t flags)
 
     p.w = w;
     p.h = h;
-    cleared(&s, shown, false);
+    cleared(&s, shown, false, 0);
     end(&s);
     finish(cb);
 
